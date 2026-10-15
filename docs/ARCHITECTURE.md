@@ -19,6 +19,9 @@ Desktop-Clean-App/              ← workspace root (the solution lives here, not
 │  │  ├─ App.xaml(.cs)          ← composition root: dependency injection, logging, error handlers
 │  │  └─ MainWindow.xaml(.cs)
 │  ├─ SafeClean.Core/           ← pure logic: models, interfaces, safety policies. No file access.
+│  │  ├─ Models/                ← FileFacts, FileIdentity, ApprovedRoot, decisions, reason codes
+│  │  ├─ Policies/              ← PathValidator, WindowsPath, ProtectedLocations, RootPolicy, CandidatePolicy, PolicyText
+│  │  └─ Interfaces/
 │  └─ SafeClean.Infrastructure/ ← talks to Windows: scanning, cleanup, monitoring, logging
 ├─ tests/
 │  ├─ SafeClean.Core.Tests/

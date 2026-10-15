@@ -34,6 +34,26 @@ That is why the command uses `--solution` and why no `Microsoft.NET.Test.Sdk` pa
 | `ForbiddenApiTests` | 27 | 25 forbidden-API patterns (path-based deletion, shell/process launching, process killing, memory trimming, registry, networking) are absent from `src/`; the scanner really sees the source files; every pattern catches known-bad sample code. The deletion engine will be allow-listed in Phase 5 (one file only). |
 | `FileLoggerTests` | 7 | Format, profile-path redaction (case-insensitive), exception details, daily files, unusable folder doesn't crash, logging after dispose ignored, default log folder is outside Temp. |
 
+## Policy tests (implemented in Phase 2)
+
+All in `tests/SafeClean.Core.Tests/Policies/`, using synthetic paths only (no disk access):
+
+| Test class | What it covers |
+|---|---|
+| `PathValidatorTests` | ≈70 accepted/rejected paths: traversal, streams, device/network prefixes, reserved names, trailing dot/space, invalid and control characters, lone surrogates, Unicode, long paths |
+| `WindowsPathTests` | "Strictly inside" (sibling-prefix trap), case handling, culture comparisons refused, relative path, depth, extension |
+| `ProtectedLocationsTests` | Subtrees, exact paths, drive roots, root conflicts, input normalisation |
+| `RootPolicyTests` | Every root rule on its own, dangerous Temp locations, all problems reported together, unknown identity |
+| `CandidatePolicyTests` | Every candidate rule on its own, boundaries (exactly 7 days, depth 16), redirection, exclusions, review types, Unicode, long paths, categories |
+| `PolicyTextTests` | Every status/reason/problem/category has user-facing text; default status is Skipped |
+
+The full rule → test mapping is in `docs/phases/PHASE-02-core-safety-policies.md`.
+
+**Mutation check (how we know the tests have teeth):** a script plants one deliberate bug at a time
+in the rules, runs the tests, and restores the file. Every planted bug must make at least one test fail.
+*Lesson learned:* restored files keep their old timestamps, so afterwards run
+`dotnet build SafeClean.sln --no-incremental` — otherwise the build may reuse the mutated binary.
+
 ## Gate before enabling real deletion (Phase 6)
 
 Every item must have a passing automated test (or a documented, justified skip) before Phase 7:
@@ -79,6 +99,10 @@ in `SECURITY.md` §6; tests confirm the implementation follows it.
 | 2026-10-15 | 1 | App launch + UI Automation walk of all 5 pages + screenshots | ✅ All pages reachable by accessible name; exit code 0; 2 layout issues found, fixed, re-verified |
 | 2026-10-15 | 1 | Keyboard (Tab, ↓↓) posted to the app window only | ✅ Navigation works; focus-ring visibility needs a manual check (inactive window) |
 | 2026-10-15 | 1 | Log file inspection | ✅ Startup/exit lines present; real profile path absent |
+| 2026-10-15 | 2 | `dotnet build SafeClean.sln -c Debug` | ✅ 0 warnings, 0 errors |
+| 2026-10-15 | 2 | `dotnet test --solution SafeClean.sln -c Debug` (first run) | ❌ 272/274 — two test-side problems (over-broad "cmd" pattern; lone-surrogate data altered by attribute encoding), both fixed |
+| 2026-10-15 | 2 | `dotnet test --solution SafeClean.sln -c Debug` | ✅ 281 passed, 0 failed, 0 skipped (Core 273, Infrastructure 8) |
+| 2026-10-15 | 2 | Mutation check: 4 deliberate bugs planted one at a time in Core rules | ✅ 4/4 caught (5, 3, 3 and 1 failing tests); sources verified restored |
 
 ## Manual test checklist (to be completed in Phase 11)
 

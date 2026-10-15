@@ -13,7 +13,7 @@ Detailed plan for each phase: [`docs/phases/`](phases/README.md) (one file per p
 |---|---|---|
 | 0 | Environment inspection, requirements, threat model, plan | Done |
 | 1 | Solution, conventions, WPF shell, DI, logging, test projects | Done (2026-10-15) |
-| 2 | Core safety policies (path validation, root rules, candidate rules) + unit tests | Not started |
+| 2 | Core safety policies (path validation, root rules, candidate rules) + unit tests | Done (2026-10-15) |
 | 3 | Read-only Temp scanner + sandbox integration tests | Not started |
 | 4 | Junk Cleaner screen: Dry Run preview, categories, checkboxes (no deletion code) | Not started |
 | 5 | Handle-based cleanup engine + audit logging (not connected to UI) | Not started |
@@ -45,13 +45,15 @@ Detailed plan for each phase: [`docs/phases/`](phases/README.md) (one file per p
 - [x] Guardrail tests: Dry Run default, layer boundaries, forbidden APIs (deletion, shell, process kill, memory trimming, network, registry)
 - [x] Verified: build 0 warnings, 42/42 tests pass, app launches, screenshots and log checked
 
-## Phase 2 – Core safety policies
-- [ ] Models: candidate, file facts, statuses, skip reasons
-- [ ] Path validator (traversal, ADS, device names, UNC, trailing dot/space, invalid chars, length)
-- [ ] Protected-location model (subtrees + exact paths)
-- [ ] Root containment check (case-insensitive for strings, ordinal for OS-reported paths)
-- [ ] Candidate policy (attributes allow-list, link count, age, review types)
-- [ ] Unit tests for every rule, including Unicode and very long names
+## Phase 2 – Core safety policies ✅ (2026-10-15)
+- [x] Models: file facts, file identity, root facts, approved root, decisions, statuses, reasons, categories (`ScanCandidate` moved to Phase 3)
+- [x] Path validator (traversal, ADS, device names, UNC, device prefixes, slashes, trailing dot/space, invalid chars, lone surrogates, length)
+- [x] Protected-location model (subtrees + exact paths + drive roots)
+- [x] Containment helpers (`WindowsPath`): exact for OS-reported paths, case-insensitive for protection
+- [x] Root policy (R2–R7) — the only way to create an `ApprovedRoot`
+- [x] Candidate policy (attributes allow-list, link count, age, timestamps, depth, exclusions, review types)
+- [x] Plain-English text for every reason
+- [x] Verified: 0 warnings; 281/281 tests pass (239 new); mutation check caught 4/4 planted bugs
 
 ## Phase 3 – Read-only scanner
 - [ ] Native interop layer (`CreateFileW`, `GetFileInformationByHandleEx`, `GetFinalPathNameByHandleW`)

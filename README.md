@@ -2,8 +2,9 @@
 
 A safety-first Windows PC cleaner built with C#, WPF and .NET 10. Free, local-only, no cloud services.
 
-> **Current status: Phase 1 done** — the app opens with its dark-themed window, navigation and safety
-> badges, logging and guardrail tests. It **cannot scan or delete anything yet**; pages show honest
+> **Current status: Phase 2 done** — the app opens with its dark-themed window, navigation and safety
+> badges, and the safety rules that decide which files may be offered for cleanup are written and
+> tested (281 automated tests). It **cannot scan or delete anything yet**; pages show honest
 > "not connected yet" placeholders.
 
 ## What it will do (version 1)

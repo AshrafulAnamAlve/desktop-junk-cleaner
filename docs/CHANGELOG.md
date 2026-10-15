@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+### Phase 2 — core safety policies ✅ Done (2026-10-15)
+Verified: build 0 warnings; 281/281 tests pass (239 new); mutation check caught 4/4 planted bugs.
+No disk access in this phase.
+
+Created:
+- `src/SafeClean.Core/Models/`: `FileIdentity`, `FileFacts`, `RootFacts`, `ApprovedRoot`, `RootDecision`,
+  `CandidateDecision`, `CandidateStatus`, `SkipReason`, `RootProblem`, `PathProblem`, `CandidateCategory`
+- `src/SafeClean.Core/Policies/`: `PathValidator`, `WindowsPath`, `ProtectedLocations`, `RootPolicy`,
+  `CandidatePolicyContext`, `CandidatePolicy`, `PolicyText`
+- `tests/SafeClean.Core.Tests/Policies/`: `TestData`, `PathValidatorTests`, `WindowsPathTests`,
+  `ProtectedLocationsTests`, `RootPolicyTests`, `CandidatePolicyTests`, `PolicyTextTests`
+
+Changed:
+- `tests/SafeClean.Core.Tests/ForbiddenApiTests.cs`: "cmd" pattern no longer matches the `.cmd` extension; 7 new pattern tests
+- `docs/SECURITY.md`: rules C5, C7, C8, R5 made more precise; `ApprovedRoot` only via `RootPolicy`
+- `docs/phases/PHASE-03`: root resolver builds `RootFacts` for `RootPolicy`; no test-only bypass; strip `\\?\`
+
 ### Phase 1 — solution skeleton, conventions, WPF shell ✅ Done (2026-10-15)
 Verified: build 0 warnings; 42/42 tests pass; no vulnerable packages; app launches, all pages render,
 keyboard navigation works, log file correct.

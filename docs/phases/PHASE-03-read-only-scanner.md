@@ -33,9 +33,13 @@ Each file is classified by the Phase 2 policy as Eligible, Needs review or Skipp
 
 ### Root resolver (rules R1–R7)
 - [ ] `TempRootResolver` — `Path.GetTempPath()` → full path → checks fixed NTFS drive → walks every parent
-      checking for reparse attributes → opens directory handle → compares identity with `%LOCALAPPDATA%\Temp`
-      → canonical root = OS-reported final path → applies `RootPolicy`
-- [ ] Returns either an `ApprovedRoot` or a clear, user-readable refusal reason
+      checking for reparse attributes → opens directory handle → reads identity of both the Temp folder and
+      `%LOCALAPPDATA%\Temp` → builds `RootFacts` → `RootPolicy.Evaluate` (Phase 2) decides
+- [ ] Strip the `\\?\` prefix from `GetFinalPathNameByHandle` results (Core rejects it); refuse `\\?\UNC\` results
+- [ ] `KnownProtectedLocations` builder: `ProtectedLocations` from `Environment.GetFolderPath` known folders,
+      plus `<drive>:\$Recycle.Bin` and `<drive>:\System Volume Information`
+- [ ] Returns either an `ApprovedRoot` or the `RootProblem` list (shown with `PolicyText`)
+- [ ] `ScanCandidate` model (moved from Phase 2): candidate ID, `FileFacts` (or none if unreadable), `CandidateDecision`
 
 ### Scanner
 - [ ] `ITempScanner` (Core) / `TempScanner` (Infrastructure): `ScanAsync(IProgress<ScanProgress>, CancellationToken)`
@@ -55,7 +59,8 @@ Each file is classified by the Phase 2 policy as Eligible, Needs review or Skipp
 - [ ] `HardLink.Create` via `CreateHardLinkW`
 - [ ] File symlink via `File.CreateSymbolicLink`; if Windows refuses (no Developer Mode), test is **skipped** with reason
 - [ ] Helpers for attributes, timestamps (make files "8 days old"), and locked files (`FileShare.None`)
-- [ ] Test-only `ApprovedRoot` factory (internal, via `InternalsVisibleTo`) that applies every root rule **except** R5 (identity with real Temp)
+- [ ] Sandbox roots go through the **same** `RootPolicy`: tests supply the sandbox folder's own identity as the
+      expected identity (no bypass code exists — decided in Phase 2)
 
 ## Tests
 

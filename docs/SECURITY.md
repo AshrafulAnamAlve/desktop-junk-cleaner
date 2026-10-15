@@ -3,7 +3,8 @@
 > Priority order: **protect user data → correctness → usability → performance.**
 > A skipped file is always preferable to deleting an important one. Uncertainty means *skip*.
 
-Status: **Policy defined (Phase 0); guardrails in place (Phase 1). Real deletion is NOT implemented and is disabled.**
+Status: **Policy defined (Phase 0); guardrails in place (Phase 1); policy rules implemented and unit-tested
+in `SafeClean.Core` (Phase 2). Real deletion is NOT implemented and is disabled.**
 This document is updated whenever behaviour changes. Values marked *(initial)* may be tuned later,
 but only with a documented reason and matching tests.
 
@@ -32,12 +33,16 @@ It is resolved at runtime (never hard-coded) and accepted only if **all** of the
 | R2 | Fully qualified local drive path (no UNC `\\server\share`, no device path `\\?\`/`\\.\`). |
 | R3 | On a fixed, NTFS-formatted volume. |
 | R4 | Exists, is a real directory, and **neither it nor any parent folder is a reparse point** (symlink, junction, mount point). |
-| R5 | It is the **same directory** (same volume serial number and file ID) as `%LOCALAPPDATA%\Temp`. A `TEMP` variable redirected to `C:\`, `D:\Data`, `C:\Windows\Temp`, etc. is refused. |
+| R5 | It is the **same directory** (same volume serial number and file ID) as `%LOCALAPPDATA%\Temp`. A `TEMP` variable redirected to `C:\`, `D:\Data`, `C:\Windows\Temp`, etc. is refused. An identity that could not be read (all zeros) never matches. |
 | R6 | It is not a drive root, not the user profile root, does not contain any protected location, and is not inside Windows, Program Files or ProgramData. |
 | R7 | The canonical root used for all comparisons is the path the **operating system reports** for an opened handle to the directory (`GetFinalPathNameByHandle`), not a string we built. |
 | R8 | Cleanup (not scanning) is refused while the process is elevated. |
 
 If any check fails, SafeClean shows why and offers **no cleanup at all**.
+
+In code, `RootPolicy` (Core) is the only place that can create an `ApprovedRoot`, so every scan and cleanup
+is forced through these rules. There is no bypass, not even for tests: sandbox tests supply their sandbox
+folder's identity as the expected identity and pass the same checks.
 
 ## 3. Protected locations
 
@@ -66,14 +71,15 @@ from settings, or passed from the UI are never used as deletion targets on their
 | C2 | Is a file (directories are never deletion candidates). | Not listed |
 | C3 | Has no reparse-point attribute (symlinks, junctions, mount points, cloud placeholders, dedup stubs). | Skipped |
 | C4 | Attributes are within the allow-list: Normal, Archive, Temporary, NotContentIndexed, Compressed. Anything else (ReadOnly, Hidden, System, Offline, Encrypted, Sparse, Recall-on-open/access, Pinned, Unpinned, Device, IntegrityStream, NoScrubData…) | Skipped |
-| C5 | Opening it read-only (with `FILE_FLAG_OPEN_REPARSE_POINT`) succeeds, and the OS-reported final path is strictly inside the canonical root. | Skipped |
-| C6 | Hard-link count is exactly 1 (deleting one of several links frees nothing and may confuse other software). | Skipped |
-| C7 | Neither created nor modified within the last *(initial)* **7 days**; timestamps in the future are suspicious. Matches the default age used by Windows Disk Cleanup for temporary files. | Skipped |
-| C8 | Path passes string validation: no `..` segments, no alternate data stream (`name:stream`), no reserved device names (`CON`, `NUL`, `COM1`…), no trailing dots/spaces, no invalid characters. | Skipped |
+| C5 | Opening it read-only (with `FILE_FLAG_OPEN_REPARSE_POINT`) succeeds; the OS-reported final path is strictly inside the canonical root (**exact**, case-sensitive comparison of OS-produced strings) and is **exactly equal** to the path where the file was found. | Skipped (`OutsideRoot` / `PathMismatch`) |
+| C6 | Hard-link count is exactly 1 (deleting one of several links frees nothing and may confuse other software; 0 means it is already being deleted). | Skipped |
+| C7 | Neither created nor modified within the last *(initial)* **7 days** (uses the newer of the two dates). Timestamps in the future or before 1980 are untrustworthy. Matches the default age used by Windows Disk Cleanup for temporary files. Settings may raise but never lower the age. | Skipped (`TooRecent` / `UntrustworthyTimestamp`) |
+| C8 | Path passes string validation: canonical `X:\...` form only; no `.`/`..` segments, no empty segments or trailing `\`, no forward slashes, no alternate data stream (`name:stream`), no device (`\\?\`, `\\.\`) or network prefixes, no reserved device names (`CON`, `PRN`, `AUX`, `NUL`, `COM0-9`, `LPT0-9`, superscript variants, `CONIN$`, `CONOUT$`, `CLOCK$`, also with extensions), no trailing dots/spaces, no `<>"\|?*`, control characters or lone surrogates, names ≤ 255 and paths ≤ 32,767 characters. | Skipped |
 | C9 | Not inside a protected location and not matched by a user exclusion. | Skipped |
 
 A file's **extension or age alone never makes it safe**. Extensions are used only for grouping into
-categories and to flag files that need review.
+categories and to flag files that need review. Every failed check is reported (not just the first), and
+an uninitialised status value means *Skipped*, never *Eligible*.
 
 Outcome states shown in the UI:
 

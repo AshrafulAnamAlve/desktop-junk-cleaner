@@ -24,7 +24,8 @@ public sealed class ForbiddenApiTests
 
         // Shells and launching other programs
         (@"\bProcess\.Start\b", "launching processes"),
-        (@"(?i)\bcmd(\.exe)?\b\s*[""/]", "command prompt"),
+        // "cmd.exe", "cmd /c", Process.Start("cmd", ...) — but not the ".cmd" file extension.
+        (@"(?i)(?<![.\w])cmd(\.exe)?\b\s*[""/]", "command prompt"),
         (@"(?i)\bpowershell\b", "PowerShell"),
 
         // Killing processes or manipulating memory
@@ -107,4 +108,25 @@ public sealed class ForbiddenApiTests
         Assert.All(samples, sample =>
             Assert.Contains(Forbidden, f => Regex.IsMatch(sample, f.Pattern)));
     }
+
+    [Theory]
+    [InlineData("Process.Start(\"cmd.exe\", \"/c del *\");")]
+    [InlineData("Process.Start(\"cmd\", \"/c rd /s\");")]
+    [InlineData("var shell = @\"C:\\Windows\\System32\\cmd.exe\";")]
+    [InlineData("run(\"cmd /c del *\");")]
+    public void CommandPromptPattern_CatchesShellLaunches(string sample)
+    {
+        Assert.Matches(CommandPromptPattern, sample);
+    }
+
+    [Theory]
+    [InlineData("\".bat\", \".cmd\", \".vbs\"")]
+    [InlineData("var command = \"x\";")]
+    [InlineData("// a .cmd file is a script")]
+    public void CommandPromptPattern_IgnoresHarmlessText(string sample)
+    {
+        Assert.DoesNotMatch(CommandPromptPattern, sample);
+    }
+
+    private static string CommandPromptPattern => Forbidden.Single(f => f.Reason == "command prompt").Pattern;
 }
