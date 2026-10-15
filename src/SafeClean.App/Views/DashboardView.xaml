@@ -1,0 +1,95 @@
+<UserControl x:Class="SafeClean.App.Views.DashboardView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Monitoring and scanning are not connected yet: placeholders say so instead of showing invented numbers. -->
+  <StackPanel>
+    <WrapPanel>
+      <Border Style="{StaticResource Card}" Width="196" Margin="0,0,16,16">
+        <StackPanel>
+          <StackPanel Orientation="Horizontal">
+            <TextBlock Style="{StaticResource Text.CardIcon}" Text="&#xE964;" />
+            <TextBlock Style="{StaticResource Text.CardTitle}" Text="Memory" />
+          </StackPanel>
+          <TextBlock Style="{StaticResource Text.MetricValue}" Text="—" AutomationProperties.Name="Memory usage not available" />
+          <TextBlock Style="{StaticResource Text.Caption}" Text="Not connected yet" />
+        </StackPanel>
+      </Border>
+
+      <Border Style="{StaticResource Card}" Width="196" Margin="0,0,16,16">
+        <StackPanel>
+          <StackPanel Orientation="Horizontal">
+            <TextBlock Style="{StaticResource Text.CardIcon}" Text="&#xE9D9;" />
+            <TextBlock Style="{StaticResource Text.CardTitle}" Text="Processor" />
+          </StackPanel>
+          <TextBlock Style="{StaticResource Text.MetricValue}" Text="—" AutomationProperties.Name="Processor usage not available" />
+          <TextBlock Style="{StaticResource Text.Caption}" Text="Not connected yet" />
+        </StackPanel>
+      </Border>
+
+      <Border Style="{StaticResource Card}" Width="196" Margin="0,0,16,16">
+        <StackPanel>
+          <StackPanel Orientation="Horizontal">
+            <TextBlock Style="{StaticResource Text.CardIcon}" Text="&#xEDA2;" />
+            <TextBlock Style="{StaticResource Text.CardTitle}" Text="System drive" />
+          </StackPanel>
+          <TextBlock Style="{StaticResource Text.MetricValue}" Text="—" AutomationProperties.Name="Disk space not available" />
+          <TextBlock Style="{StaticResource Text.Caption}" Text="Not connected yet" />
+        </StackPanel>
+      </Border>
+
+      <Border Style="{StaticResource Card}" Width="196" Margin="0,0,16,16">
+        <StackPanel>
+          <StackPanel Orientation="Horizontal">
+            <TextBlock Style="{StaticResource Text.CardIcon}" Text="&#xE74D;" />
+            <TextBlock Style="{StaticResource Text.CardTitle}" Text="Junk files" />
+          </StackPanel>
+          <TextBlock Style="{StaticResource Text.MetricValue}" Text="—" AutomationProperties.Name="No scan results" />
+          <TextBlock Style="{StaticResource Text.Caption}" Text="No scan has been run" />
+        </StackPanel>
+      </Border>
+    </WrapPanel>
+
+    <Border Style="{StaticResource Card}" Margin="0,0,16,0">
+      <StackPanel>
+        <TextBlock Style="{StaticResource Text.CardTitle}" Text="Safety status" Margin="0,0,0,14" />
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="28" />
+            <ColumnDefinition Width="150" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
+
+          <TextBlock Grid.Row="0" Text="&#xE73E;" FontFamily="{StaticResource Font.Icons}" Foreground="{StaticResource Brush.Success}" Margin="0,4" />
+          <TextBlock Grid.Row="0" Grid.Column="1" Text="Cleanup mode" Margin="0,2" />
+          <TextBlock Grid.Row="0" Grid.Column="2" Style="{StaticResource Text.Body}" Text="Dry Run: preview only, nothing is deleted." Margin="0,2" />
+
+          <TextBlock Grid.Row="1" FontFamily="{StaticResource Font.Icons}" Margin="0,4">
+            <TextBlock.Style>
+              <Style TargetType="TextBlock">
+                <Setter Property="Text" Value="&#xE73E;" />
+                <Setter Property="Foreground" Value="{StaticResource Brush.Success}" />
+                <Style.Triggers>
+                  <DataTrigger Binding="{Binding IsElevated}" Value="True">
+                    <Setter Property="Text" Value="&#xE7BA;" />
+                    <Setter Property="Foreground" Value="{StaticResource Brush.Warning}" />
+                  </DataTrigger>
+                </Style.Triggers>
+              </Style>
+            </TextBlock.Style>
+          </TextBlock>
+          <TextBlock Grid.Row="1" Grid.Column="1" Text="User rights" Margin="0,2" />
+          <TextBlock Grid.Row="1" Grid.Column="2" Style="{StaticResource Text.Body}" Text="{Binding RightsText}" Margin="0,2" />
+
+          <TextBlock Grid.Row="2" Text="&#xE73E;" FontFamily="{StaticResource Font.Icons}" Foreground="{StaticResource Brush.Success}" Margin="0,4" />
+          <TextBlock Grid.Row="2" Grid.Column="1" Text="Privacy" Margin="0,2" />
+          <TextBlock Grid.Row="2" Grid.Column="2" Style="{StaticResource Text.Body}" Text="Works fully offline. Nothing about your files leaves this PC." Margin="0,2" />
+        </Grid>
+      </StackPanel>
+    </Border>
+  </StackPanel>
+</UserControl>

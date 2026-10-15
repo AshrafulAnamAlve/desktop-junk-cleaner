@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Pure logic only: models, interfaces and safety policies.
+       This project must never reference WPF, Infrastructure or perform file-system access. -->
+  <PropertyGroup>
+    <RootNamespace>SafeClean.Core</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="SafeClean.Core.Tests" />
+  </ItemGroup>
+
+</Project>

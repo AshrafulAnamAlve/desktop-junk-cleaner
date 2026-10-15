@@ -1,0 +1,33 @@
+<Project>
+  <!-- Settings shared by every project in the solution. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+
+    <!-- Treat compiler and analyzer warnings as build errors so likely bugs are fixed, not ignored. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <Deterministic>true</Deterministic>
+
+    <!-- Supply-chain safety: exact package hashes are recorded in packages.lock.json,
+         and known-vulnerable packages (direct or transitive) fail the build. -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>low</NuGetAuditLevel>
+
+    <Product>SafeClean</Product>
+    <Company>SafeClean</Company>
+    <Copyright>SafeClean contributors</Copyright>
+    <Version>0.1.0</Version>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- SafeClean never uses the network; don't import networking types implicitly. -->
+    <Using Remove="System.Net.Http" />
+  </ItemGroup>
+</Project>

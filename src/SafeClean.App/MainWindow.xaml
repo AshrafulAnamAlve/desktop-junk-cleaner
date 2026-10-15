@@ -1,0 +1,103 @@
+<Window x:Class="SafeClean.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:SafeClean.App.ViewModels"
+        xmlns:views="clr-namespace:SafeClean.App.Views"
+        Title="SafeClean"
+        Width="1200" Height="760" MinWidth="900" MinHeight="600"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource Brush.Window}"
+        Foreground="{StaticResource Brush.Text.Primary}"
+        FontFamily="{StaticResource Font.Text}"
+        FontSize="14"
+        UseLayoutRounding="True">
+
+  <Window.Resources>
+    <!-- Which view is shown for which page view model -->
+    <DataTemplate DataType="{x:Type vm:DashboardViewModel}"><views:DashboardView /></DataTemplate>
+    <DataTemplate DataType="{x:Type vm:JunkCleanerViewModel}"><views:JunkCleanerView /></DataTemplate>
+    <DataTemplate DataType="{x:Type vm:PerformanceViewModel}"><views:PerformanceView /></DataTemplate>
+    <DataTemplate DataType="{x:Type vm:HistoryViewModel}"><views:HistoryView /></DataTemplate>
+    <DataTemplate DataType="{x:Type vm:SettingsViewModel}"><views:SettingsView /></DataTemplate>
+
+    <DataTemplate x:Key="NavItemTemplate" DataType="{x:Type vm:NavigationItem}">
+      <StackPanel Orientation="Horizontal">
+        <TextBlock Text="{Binding Glyph}" FontFamily="{StaticResource Font.Icons}" FontSize="16"
+                   VerticalAlignment="Center" Margin="0,0,12,0" />
+        <TextBlock Text="{Binding Title}" FontSize="14" VerticalAlignment="Center" />
+      </StackPanel>
+    </DataTemplate>
+  </Window.Resources>
+
+  <Grid>
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="232" />
+      <ColumnDefinition Width="*" />
+    </Grid.ColumnDefinitions>
+
+    <!-- Sidebar -->
+    <Border Background="{StaticResource Brush.Sidebar}" BorderBrush="{StaticResource Brush.Border}" BorderThickness="0,0,1,0">
+      <DockPanel Margin="16,22,16,16">
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="4,0,0,28">
+          <Border Width="34" Height="34" CornerRadius="9" Background="{StaticResource Brush.Accent.Soft}">
+            <TextBlock Text="&#xEA18;" FontFamily="{StaticResource Font.Icons}" FontSize="17"
+                       Foreground="{StaticResource Brush.Accent}"
+                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+            <TextBlock Text="SafeClean" FontSize="16" FontWeight="SemiBold" />
+            <TextBlock Text="Secure PC cleaner" Style="{StaticResource Text.Caption}" />
+          </StackPanel>
+        </StackPanel>
+
+        <StackPanel DockPanel.Dock="Bottom">
+          <Border Style="{StaticResource Badge}" Background="{StaticResource Brush.Warning.Soft}" Margin="0,0,0,8"
+                  Visibility="{Binding IsElevated, Converter={StaticResource BoolToVisibility}}"
+                  AutomationProperties.Name="Warning: running as administrator. Cleanup will be disabled.">
+            <StackPanel>
+              <TextBlock Text="ADMINISTRATOR" FontSize="11" FontWeight="Bold" Foreground="{StaticResource Brush.Warning}" />
+              <TextBlock Text="Cleanup will be disabled" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"
+                         Foreground="{StaticResource Brush.Warning}" />
+            </StackPanel>
+          </Border>
+          <Border Style="{StaticResource Badge}" Background="{StaticResource Brush.Accent.Soft}"
+                  AutomationProperties.Name="Dry Run mode: preview only, nothing is deleted.">
+            <StackPanel>
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Text="&#xE7B3;" FontFamily="{StaticResource Font.Icons}" FontSize="12" VerticalAlignment="Center"
+                           Margin="0,0,6,0" Foreground="{StaticResource Brush.Accent.SoftText}" />
+                <TextBlock Text="DRY RUN" FontSize="11" FontWeight="Bold" Foreground="{StaticResource Brush.Accent.SoftText}" />
+              </StackPanel>
+              <TextBlock Text="Preview only · nothing is deleted" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"
+                         Foreground="{StaticResource Brush.Accent.SoftText}" />
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+        <ListBox ItemsSource="{Binding NavigationItems}"
+                 SelectedItem="{Binding SelectedItem, Mode=TwoWay}"
+                 ItemTemplate="{StaticResource NavItemTemplate}"
+                 Style="{StaticResource NavList}"
+                 ItemContainerStyle="{StaticResource NavItem}"
+                 AutomationProperties.Name="Main navigation" />
+      </DockPanel>
+    </Border>
+
+    <!-- Page header and content -->
+    <Grid Grid.Column="1">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+      </Grid.RowDefinitions>
+
+      <StackPanel Margin="40,30,40,22">
+        <TextBlock Text="{Binding CurrentPage.Title}" Style="{StaticResource Text.PageTitle}" />
+        <TextBlock Text="{Binding CurrentPage.Subtitle}" Style="{StaticResource Text.PageSubtitle}" />
+      </StackPanel>
+
+      <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+        <ContentControl Content="{Binding CurrentPage}" Margin="40,0,40,32" Focusable="False" VerticalAlignment="Top" />
+      </ScrollViewer>
+    </Grid>
+  </Grid>
+</Window>

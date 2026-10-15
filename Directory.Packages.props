@@ -1,0 +1,16 @@
+<Project>
+  <!-- The single place where NuGet packages and their exact versions are declared.
+       Every package here must be free, from a trusted publisher, and documented in docs/ARCHITECTURE.md. -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Microsoft: application plumbing -->
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
+    <!-- Testing only (never shipped with the app). xunit.v3 runs on Microsoft.Testing.Platform,
+         enabled in global.json, so no separate test SDK or runner package is needed. -->
+    <PackageVersion Include="xunit.v3" Version="4.0.0" />
+  </ItemGroup>
+</Project>
