@@ -9,8 +9,28 @@ namespace SafeClean.Core.Tests;
 /// </summary>
 public sealed class ForbiddenApiTests
 {
+    /// <summary>The single file allowed to delete (Phase 5). See docs/SECURITY.md §5.</summary>
+    private static readonly string DeletionEngine = Path.Combine("src", "SafeClean.Infrastructure", "Cleanup", "HandleBasedFileDeleter.cs");
+
+    // Patterns only the deletion engine may use.
+    private const string HandleChange = @"\bSetFileInformationByHandle\b";
+    private const string Disposition = @"(?i)\bFILE_?DISPOSITION";
+    private const string DeleteAccess = @"\bDELETE\b";
+    private const string DeleteAccessNumber = @"(?i)\b0x0*1_?0000\b";
+
     private static readonly (string Pattern, string Reason)[] Forbidden =
     [
+        // Handle-based deletion: allowed only in the deletion engine (see Allowed below)
+        (HandleChange, "changing a file through a handle"),
+        (Disposition, "marking a file for deletion"),
+        (DeleteAccess, "the DELETE access right"),
+        (DeleteAccessNumber, "the DELETE access right written as a number"),
+
+        // Other ways to delete, move or overwrite files: allowed nowhere
+        (@"(?i)DELETE_?ON_?CLOSE", "delete-on-close (deletes by path)"),
+        (@"\b(Nt|Zw)SetInformationFile\b", "low-level file changes"),
+        (@"\b(File|Directory)\.(Move|Replace)\b|\bReplaceFile|\bMoveFile", "moving or replacing files"),
+
         // Path-based or broad deletion (SafeClean must delete only through a validated handle)
         (@"\bFile\.Delete\b", "path-based file deletion"),
         (@"\bDirectory\.Delete\b", "path-based directory deletion"),
@@ -49,7 +69,13 @@ public sealed class ForbiddenApiTests
     ];
 
     /// <summary>Pattern → files (relative to the repository root) allowed to use it, with the reason documented there.</summary>
-    private static readonly Dictionary<string, string[]> Allowed = [];
+    private static readonly Dictionary<string, string[]> Allowed = new()
+    {
+        [HandleChange] = [DeletionEngine],
+        [Disposition] = [DeletionEngine],
+        [DeleteAccess] = [DeletionEngine],
+        [DeleteAccessNumber] = [DeletionEngine],
+    };
 
     public static TheoryData<string, string> ForbiddenPatterns()
     {
@@ -88,6 +114,7 @@ public sealed class ForbiddenApiTests
         Assert.Contains("CleanupMode.cs", files);
         Assert.Contains("FileLoggerProvider.cs", files);
         Assert.Contains("MainWindow.xaml", files);
+        Assert.Contains("HandleBasedFileDeleter.cs", files);
     }
 
     [Fact]
@@ -103,10 +130,42 @@ public sealed class ForbiddenApiTests
             "process.Kill();",
             "using var http = new HttpClient();",
             "Registry.CurrentUser.OpenSubKey(x);",
+            "SetFileInformationByHandle(handle, 4, ref info, 1);",
+            "new FileStream(p, FileMode.Open, FileAccess.Read, FileShare.None, 4096, FileOptions.DeleteOnClose);",
+            "const uint Access = 0x00010000;",
+            "File.Move(a, b, overwrite: true);",
+            "NtSetInformationFile(h, out io, info, len, 13);",
         ];
 
         Assert.All(samples, sample =>
             Assert.Contains(Forbidden, f => Regex.IsMatch(sample, f.Pattern)));
+    }
+
+    [Fact]
+    public void AllowList_NamesOnlyTheDeletionEngine_AndItExists()
+    {
+        var allowedFiles = Allowed.Values.SelectMany(files => files).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+        Assert.Equal([DeletionEngine], allowedFiles);
+        Assert.True(File.Exists(Path.Combine(RepositoryFiles.Root, DeletionEngine)), "The allow-listed deletion engine file is missing.");
+    }
+
+    [Fact]
+    public void DeletionEngine_IsWhereTheHandleDeletionCodeActuallyLives()
+    {
+        // Proves the allowances are needed (not stale): the engine really uses each allowed pattern.
+        var source = File.ReadAllText(Path.Combine(RepositoryFiles.Root, DeletionEngine));
+
+        Assert.All(Allowed.Keys, pattern => Assert.Matches(pattern, source));
+    }
+
+    [Theory]
+    [InlineData("private const uint SYNCHRONIZE = 0x0010_0000;")]
+    [InlineData("internal const uint FILE_FLAG_BACKUP_SEMANTICS = 0x02000000;")]
+    [InlineData("var generic = 0x10000000;")]
+    public void DeleteAccessNumberPattern_IgnoresOtherFlags(string sample)
+    {
+        Assert.DoesNotMatch(DeleteAccessNumber, sample);
     }
 
     [Theory]

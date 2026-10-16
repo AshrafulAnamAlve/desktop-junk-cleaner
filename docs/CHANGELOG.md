@@ -2,6 +2,70 @@
 
 ## [Unreleased]
 
+### Phase 5 — handle-based cleanup engine (not connected to the UI) ✅ Done (2026-10-16)
+Verified: build 0 warnings; 508 passed, 3 skipped; every deletion in tests was a synthetic file inside a
+test sandbox; mutation check caught 11/12 planted bugs (the 12th removes a check that a second layer
+repeats, and is caught when both are removed). No screen or button can reach the engine (architecture test).
+
+Created:
+- `src/SafeClean.Core/`: `Interfaces/ICleanupService`; `Models/CleanupReport`, `CleanupEntry`, `CleanupOutcome`,
+  `CleanupRefusal`, `CleanupProgress`; `Policies/CleanupPolicy`
+- `src/SafeClean.Infrastructure/Cleanup/`: `HandleBasedFileDeleter` (the only code that can delete),
+  `CleanupService`, `AttemptResult`
+- `tests/SafeClean.Core.Tests/Policies/`: `CleanupPolicyTests`, `CleanupReportTests`
+- `tests/SafeClean.Infrastructure.Tests/Cleanup/`: `HandleBasedFileDeleterTests`, `CleanupServiceTests`, `CleanupTestDoubles`
+
+Changed:
+- `FileInspector`: facts can be read through an already-open handle (`ReadFacts`), shared with the engine
+- `NativeMethods`: error codes for access denied, sharing/lock violation, delete pending
+- `SafetyDefaults.MaxScanSessionAge` (30 minutes); `PolicyText` describes cleanup outcomes and refusals
+- `ForbiddenApiTests`: 7 new patterns; delete access right, `SetFileInformationByHandle` and the disposition
+  structure allowed only in `HandleBasedFileDeleter.cs`
+- `ArchitectureTests`: only `CleanupService` calls the engine; the App can't reference any cleanup class
+- `docs/SECURITY.md` §5: implemented (not enabled), whole-request checks, how the engine is built
+
+### Phase 4 — Junk Cleaner screen with Dry Run preview ✅ Done (2026-10-16)
+Verified: build 0 warnings; 396 passed, 3 skipped; real read-only scan and Dry Run preview driven through
+the app with UI Automation; screenshots reviewed. No deletion code exists.
+
+Created:
+- `src/SafeClean.App/`: `Mvvm/RelayCommand`, `Mvvm/AsyncRelayCommand`, `Presentation/DisplayText`,
+  `Converters/EnumToBooleanConverter`, `ViewModels/CandidateItemViewModel`, `CategoryViewModel`, `ScanState`
+- `src/SafeClean.Core/`: `Models/DryRunPreview`, `Policies/DryRunPlanner`
+- `tests/SafeClean.App.Tests/` (new project): `TestScans`, `JunkCleanerViewModelTests`, `PresentationTests`
+- `tests/SafeClean.Core.Tests/Policies/DryRunPlannerTests.cs`
+
+Changed:
+- `JunkCleanerViewModel` and `JunkCleanerView` rewritten (scan, results, categories, filters, details, preview)
+- `App.xaml.cs`: registers the read-only scanning services
+- `Controls.xaml` / `Theme.xaml`: checkbox, segmented filter, search box, secondary button, progress bar,
+  dark scrollbars, list rows, status badges, overlay
+- `MainWindow.xaml` and other pages: each page scrolls itself (needed for list virtualisation)
+- `DashboardView.xaml`: "Junk files" caption no longer claims no scan has run
+- `ArchitectureTests`: view models use Core only; App can't reach cleanup code before Phase 7
+- `docs/SECURITY.md`: selection rules, threats T18 (disguised names) and T19 (Temp changed by others)
+
+### Phase 3 — read-only Temp scanner ✅ Done (2026-10-16)
+Verified: build 0 warnings; 341 passed, 3 skipped (Explicit real-Temp scan, 2 symlink tests without
+Developer Mode); real Temp folder scanned read-only (24,896 entries in 10.6 s); mutation check passed.
+
+Created:
+- `src/SafeClean.Core/`: `Models/CandidateId`, `ScanCandidate`, `ScanSummary`, `ScanSession`, `ScanResult`,
+  `ScanProgress`, `RootResolution`; `Interfaces/ITempScanner`, `ITempRootResolver`
+- `src/SafeClean.Infrastructure/Native/`: `NativeMethods`, `HandleQueries`, `ExtendedPath`
+- `src/SafeClean.Infrastructure/Scanning/`: `FileInspector`, `InspectionResult`, `RootFactsReader`,
+  `KnownProtectedLocations`, `TempRootResolver`, `TempScanner`
+- `tests/SafeClean.Infrastructure.Tests/Sandbox/`: `FileSystemLinks`, `SandboxRootResolver` (+ `SyncProgress`)
+- `tests/SafeClean.Infrastructure.Tests/Scanning/`: `FileInspectorTests`, `RootResolutionTests`,
+  `TempScannerTests`, `ExtendedPathTests`, `RealTempReadOnlyScanTests`
+- `tests/SafeClean.Core.Tests/Policies/ScanModelTests.cs`
+
+Changed:
+- `CandidatePolicy.Skip(...)` added; `SafetyDefaults.MaxScanEntries` (250,000) added
+- `SafeClean.Infrastructure.csproj`: `AllowUnsafeBlocks` (generated native calls); new test keeps `unsafe` inside `Native/`
+- `TestSandbox`: aged-file creation and SHA-256 snapshots
+- `docs/SECURITY.md`: how scanning stays read-only; new known limitations
+
 ### Phase 2 — core safety policies ✅ Done (2026-10-15)
 Verified: build 0 warnings; 281/281 tests pass (239 new); mutation check caught 4/4 planted bugs.
 No disk access in this phase.

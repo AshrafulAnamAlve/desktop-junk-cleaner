@@ -26,6 +26,10 @@ accessibility and resizing.
 - [ ] Responsive: cards wrap at narrow widths; minimum window size 900×600; test at 100/125/150% scaling
 - [ ] Dashboard metric cards and full-width cards share the same right edge (adaptive grid instead of fixed-width `WrapPanel`) — noted in Phase 1
 - [ ] Manually confirm the focus ring is visible on every control (couldn't be automated in Phase 1)
+- [x] Custom dark scrollbars (done early, in Phase 4)
+- [ ] Junk Cleaner: more room for the file list at the default size (resizable splitter or side details pane on wide windows); untrimmed category titles
+- [ ] Junk Cleaner: manual keyboard check (Space ticks rows/categories, arrows, Esc closes preview)
+- [ ] Dashboard "Junk files" card shows the latest real scan summary
 - [ ] Animations limited to short hover/selection transitions
 - [ ] Consistent spacing scale (4/8/12/16/24/32) and type scale
 - [ ] Clear success/warning/error components reused across screens

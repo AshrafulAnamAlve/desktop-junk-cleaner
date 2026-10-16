@@ -19,4 +19,13 @@ public static class SafetyDefaults
 
     /// <summary>How many folder levels below the Temp root the scanner may descend (rule C1).</summary>
     public const int MaxScanDepth = 16;
+
+    /// <summary>Safety cap on how many entries one scan lists; beyond this the scan stops and says it was cut short.</summary>
+    public const int MaxScanEntries = 250_000;
+
+    /// <summary>
+    /// A cleanup is refused if its scan started longer ago than this; the Temp folder changes all the time,
+    /// so old results must be refreshed by scanning again.
+    /// </summary>
+    public static readonly TimeSpan MaxScanSessionAge = TimeSpan.FromMinutes(30);
 }

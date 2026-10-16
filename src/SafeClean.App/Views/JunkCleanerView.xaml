@@ -1,35 +1,339 @@
 <UserControl x:Class="SafeClean.App.Views.JunkCleanerView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <StackPanel>
-    <Border Style="{StaticResource Card}" Padding="32">
-      <StackPanel HorizontalAlignment="Center" MaxWidth="560">
-        <Border Style="{StaticResource EmptyStateIcon}">
-          <TextBlock Text="&#xE721;" FontFamily="{StaticResource Font.Icons}" FontSize="22"
-                     Foreground="{StaticResource Brush.Accent.SoftText}"
-                     HorizontalAlignment="Center" VerticalAlignment="Center" />
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:SafeClean.App.ViewModels"
+             xmlns:conv="clr-namespace:SafeClean.App.Converters">
+  <UserControl.Resources>
+    <conv:EnumToBooleanConverter x:Key="EnumToBool" />
+  </UserControl.Resources>
+  <UserControl.InputBindings>
+    <KeyBinding Key="Escape" Command="{Binding DismissPreviewCommand}" />
+  </UserControl.InputBindings>
+
+  <Grid Margin="40,0,40,24">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+
+    <!-- Toolbar: scanning is read-only, so its button is the normal blue one -->
+    <Border Style="{StaticResource Card}" Padding="16,12">
+      <DockPanel LastChildFill="True">
+        <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+          <Button Style="{StaticResource Button.Primary}" Command="{Binding ScanCommand}" Content="_Scan Temp folder" />
+          <Button Style="{StaticResource Button.Secondary}" Command="{Binding CancelScanCommand}" Content="Cancel" Margin="8,0,0,0"
+                  Visibility="{Binding IsScanning, Converter={StaticResource BoolToVisibility}}" />
+        </StackPanel>
+        <Border DockPanel.Dock="Right" Style="{StaticResource Badge}" Background="{StaticResource Brush.Accent.Soft}" Padding="10,6"
+                VerticalAlignment="Center" Margin="12,0,0,0">
+          <TextBlock Text="Read-only · Dry Run" FontSize="12" Foreground="{StaticResource Brush.Accent.SoftText}" />
         </Border>
-        <TextBlock Style="{StaticResource Text.EmptyTitle}" Text="Scanning isn't available yet"
-                   HorizontalAlignment="Center" Margin="0,16,0,8" />
-        <TextBlock Style="{StaticResource Text.Body}" TextAlignment="Center"
-                   Text="This screen will scan only your own Temp folder. Scanning is read-only: it lists files and explains why each one is or isn't safe to remove. Nothing is deleted unless you select files, switch on real cleanup and confirm." />
-        <Button Style="{StaticResource Button.Primary}" Content="Scan Temp folder" IsEnabled="False"
-                HorizontalAlignment="Center" Margin="0,22,0,0"
-                ToolTipService.ShowOnDisabled="True" ToolTip="Not available in this version yet" />
+        <StackPanel VerticalAlignment="Center" Margin="16,0,0,0">
+          <TextBlock Text="{Binding StatusText}" Style="{StaticResource Text.Body}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+          <ProgressBar IsIndeterminate="{Binding IsScanning}" Margin="0,6,0,0" MaxWidth="320" HorizontalAlignment="Left" Width="320"
+                       Visibility="{Binding IsScanning, Converter={StaticResource BoolToVisibility}}" AutomationProperties.Name="Scan in progress" />
+        </StackPanel>
+      </DockPanel>
+    </Border>
+
+    <!-- Summary tiles -->
+    <UniformGrid Grid.Row="1" Rows="1" Margin="0,12,-12,0" Visibility="{Binding HasResults, Converter={StaticResource BoolToVisibility}}">
+      <Border Style="{StaticResource Card}" Padding="14,8" Margin="0,0,12,0">
+        <StackPanel>
+          <TextBlock Text="Safe to remove" Style="{StaticResource Text.Caption}" Foreground="{StaticResource Brush.Success}" />
+          <TextBlock Style="{StaticResource Text.TileValue}" FontSize="15" TextTrimming="CharacterEllipsis">
+            <Run Text="{Binding EligibleCountText, Mode=OneWay}" /><Run Text=" · " Foreground="{StaticResource Brush.Text.Muted}" /><Run Text="{Binding EligibleSizeText, Mode=OneWay}" />
+          </TextBlock>
+        </StackPanel>
+      </Border>
+      <Border Style="{StaticResource Card}" Padding="14,8" Margin="0,0,12,0">
+        <StackPanel>
+          <TextBlock Text="Needs review" Style="{StaticResource Text.Caption}" Foreground="{StaticResource Brush.Warning}" />
+          <TextBlock Style="{StaticResource Text.TileValue}" FontSize="15" TextTrimming="CharacterEllipsis">
+            <Run Text="{Binding NeedsReviewCountText, Mode=OneWay}" /><Run Text=" · " Foreground="{StaticResource Brush.Text.Muted}" /><Run Text="{Binding NeedsReviewSizeText, Mode=OneWay}" />
+          </TextBlock>
+        </StackPanel>
+      </Border>
+      <Border Style="{StaticResource Card}" Padding="14,8" Margin="0,0,12,0">
+        <StackPanel>
+          <TextBlock Text="Skipped (kept for safety)" Style="{StaticResource Text.Caption}" />
+          <TextBlock Text="{Binding SkippedCountText}" Style="{StaticResource Text.TileValue}" FontSize="15" TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+      </Border>
+      <Border Style="{StaticResource Card}" Padding="14,8" Margin="0,0,12,0" ToolTip="{Binding ScanDetailsText}">
+        <StackPanel>
+          <TextBlock Text="{Binding ScanDetailsText}" Style="{StaticResource Text.Caption}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+          <TextBlock Text="{Binding EstimatedRecoverableText}" Style="{StaticResource Text.TileValue}" FontSize="15" TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+      </Border>
+    </UniformGrid>
+
+    <!-- Results -->
+    <Grid Grid.Row="2" Margin="0,12,0,0" Visibility="{Binding HasResults, Converter={StaticResource BoolToVisibility}}">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="240" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+
+      <Border Style="{StaticResource Card}" Padding="8" Margin="0,0,12,0">
+        <DockPanel>
+          <TextBlock DockPanel.Dock="Top" Text="Categories" Style="{StaticResource Text.CardTitle}" Margin="8,4,8,8" />
+          <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource Text.Caption}" Margin="8,6,8,4"
+                     Text="Ticking a category selects only its safe files." />
+          <ListBox x:Name="CategoryList" ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory}"
+                   Style="{StaticResource NavList}" ItemContainerStyle="{StaticResource NavItem}"
+                   AutomationProperties.Name="Categories" PreviewKeyDown="OnCategoryListPreviewKeyDown">
+            <ListBox.ItemTemplate>
+              <DataTemplate DataType="{x:Type vm:CategoryViewModel}">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
+                  <CheckBox IsChecked="{Binding IsChecked}" IsEnabled="{Binding CanSelect}" Focusable="False"
+                            VerticalAlignment="Top" Margin="0,1,10,0"
+                            AutomationProperties.Name="{Binding Title, StringFormat='Select safe files in {0}'}"
+                            ToolTip="Select every safe file in this category" />
+                  <StackPanel Grid.Column="1">
+                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding CountsText}" Style="{StaticResource Text.Caption}" Margin="0,2,0,0" />
+                    <TextBlock Text="{Binding SizeText}" Style="{StaticResource Text.Caption}" />
+                  </StackPanel>
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </DockPanel>
+      </Border>
+
+      <Grid Grid.Column="1">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto" />
+          <RowDefinition Height="*" MinHeight="120" />
+          <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Filter and search -->
+        <DockPanel Margin="0,0,0,8">
+          <Border DockPanel.Dock="Left" Background="{StaticResource Brush.Sidebar}" BorderBrush="{StaticResource Brush.Border}" BorderThickness="1"
+                  CornerRadius="8" Padding="3">
+            <StackPanel Orientation="Horizontal" AutomationProperties.Name="Show">
+              <RadioButton Style="{StaticResource Segment}" GroupName="ResultFilter" Content="All"
+                           IsChecked="{Binding Filter, Converter={StaticResource EnumToBool}, ConverterParameter=All}" />
+              <RadioButton Style="{StaticResource Segment}" GroupName="ResultFilter" Content="Safe"
+                           IsChecked="{Binding Filter, Converter={StaticResource EnumToBool}, ConverterParameter=Eligible}" />
+              <RadioButton Style="{StaticResource Segment}" GroupName="ResultFilter" Content="Review"
+                           IsChecked="{Binding Filter, Converter={StaticResource EnumToBool}, ConverterParameter=NeedsReview}" />
+              <RadioButton Style="{StaticResource Segment}" GroupName="ResultFilter" Content="Skipped"
+                           IsChecked="{Binding Filter, Converter={StaticResource EnumToBool}, ConverterParameter=Skipped}" />
+            </StackPanel>
+          </Border>
+          <TextBlock DockPanel.Dock="Right" Text="{Binding VisibleCountText}" Style="{StaticResource Text.Caption}" VerticalAlignment="Center" Margin="12,0,0,0" />
+          <Grid Margin="12,0,0,0">
+            <TextBox x:Name="SearchBox" Style="{StaticResource TextBox.Input}" AutomationProperties.Name="Search by file name"
+                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=250}" />
+            <TextBlock Text="Search by name" IsHitTestVisible="False" Margin="12,0,0,0" VerticalAlignment="Center"
+                       Foreground="{StaticResource Brush.Text.Muted}">
+              <TextBlock.Style>
+                <Style TargetType="TextBlock">
+                  <Setter Property="Visibility" Value="Collapsed" />
+                  <Style.Triggers>
+                    <DataTrigger Binding="{Binding Text, ElementName=SearchBox}" Value="">
+                      <Setter Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+                  </Style.Triggers>
+                </Style>
+              </TextBlock.Style>
+            </TextBlock>
+          </Grid>
+        </DockPanel>
+
+        <!-- File list -->
+        <Border Grid.Row="1" Style="{StaticResource Card}" Padding="4">
+          <DockPanel>
+            <Grid DockPanel.Dock="Top" Margin="10,6,20,4">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="30" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="84" />
+                <ColumnDefinition Width="112" />
+              </Grid.ColumnDefinitions>
+              <TextBlock Grid.Column="1" Text="Name" Style="{StaticResource Text.Caption}" />
+              <TextBlock Grid.Column="2" Text="Size" Style="{StaticResource Text.Caption}" HorizontalAlignment="Right" Margin="0,0,16,0" />
+              <TextBlock Grid.Column="3" Text="Status" Style="{StaticResource Text.Caption}" />
+            </Grid>
+            <Grid>
+              <ListBox x:Name="FileList" ItemsSource="{Binding VisibleItems}" SelectedItem="{Binding FocusedItem}"
+                       Style="{StaticResource FileList}" ItemContainerStyle="{StaticResource FileRow}"
+                       AutomationProperties.Name="Scan results" PreviewKeyDown="OnFileListPreviewKeyDown">
+                <ListBox.ItemTemplate>
+                  <DataTemplate DataType="{x:Type vm:CandidateItemViewModel}">
+                    <Grid>
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="30" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="84" />
+                        <ColumnDefinition Width="112" />
+                      </Grid.ColumnDefinitions>
+                      <CheckBox IsChecked="{Binding IsSelected}" IsEnabled="{Binding IsSelectable}" Focusable="False" VerticalAlignment="Center"
+                                AutomationProperties.Name="{Binding Name, StringFormat='Select {0}'}" />
+                      <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Folder}" Style="{StaticResource Text.Caption}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                      </StackPanel>
+                      <TextBlock Grid.Column="2" Text="{Binding SizeText}" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,16,0"
+                                 Foreground="{StaticResource Brush.Text.Secondary}" />
+                      <Border Grid.Column="3" Style="{StaticResource StatusBadge}">
+                        <TextBlock Text="{Binding StatusText}" FontSize="12" />
+                      </Border>
+                    </Grid>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+              <TextBlock Text="No files match this filter." Style="{StaticResource Text.Body}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                         Visibility="{Binding NoVisibleItems, Converter={StaticResource BoolToVisibility}}" />
+            </Grid>
+          </DockPanel>
+        </Border>
+
+        <!-- Details of the highlighted file -->
+        <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0,12,0,0" Padding="16,10" MaxHeight="150"
+                Visibility="{Binding HasFocusedItem, Converter={StaticResource BoolToVisibility}}">
+          <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False" DataContext="{Binding FocusedItem}">
+            <StackPanel>
+              <DockPanel>
+                <Border DockPanel.Dock="Right" Style="{StaticResource StatusBadge}" Margin="12,0,0,0">
+                  <TextBlock Text="{Binding StatusText}" FontSize="12" />
+                </Border>
+                <TextBlock Text="{Binding Name}" Style="{StaticResource Text.CardTitle}" TextTrimming="CharacterEllipsis" />
+              </DockPanel>
+              <TextBox Style="{StaticResource TextBox.ReadOnly}" Text="{Binding FullPath, Mode=OneWay}" Margin="0,4,0,0"
+                       Foreground="{StaticResource Brush.Text.Secondary}" FontSize="12" AutomationProperties.Name="Full path" />
+              <TextBlock Style="{StaticResource Text.Caption}" Margin="0,4,0,0" TextWrapping="Wrap">
+                <Run Text="{Binding ExactSizeText, Mode=OneWay}" /><Run Text="  ·  Modified " /><Run Text="{Binding ModifiedText, Mode=OneWay}" /><Run Text="  ·  Created " /><Run Text="{Binding CreatedText, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding CategoryText, Mode=OneWay}" />
+              </TextBlock>
+              <ItemsControl ItemsSource="{Binding Reasons}" Margin="0,6,0,0" Focusable="False"
+                            Visibility="{Binding HasReasons, Converter={StaticResource BoolToVisibility}}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding StringFormat='•  {0}'}" Style="{StaticResource Text.Body}" />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </ScrollViewer>
+        </Border>
+      </Grid>
+    </Grid>
+
+    <!-- Before the first scan -->
+    <ScrollViewer Grid.Row="2" Margin="0,12,0,0" VerticalScrollBarVisibility="Auto" Focusable="False"
+                  Visibility="{Binding ShowIntro, Converter={StaticResource BoolToVisibility}}">
+      <StackPanel>
+        <Border Style="{StaticResource Card}" Padding="32">
+          <StackPanel HorizontalAlignment="Center" MaxWidth="580">
+            <Border Style="{StaticResource EmptyStateIcon}">
+              <TextBlock Text="&#xE721;" FontFamily="{StaticResource Font.Icons}" FontSize="22" Foreground="{StaticResource Brush.Accent.SoftText}"
+                         HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <TextBlock Style="{StaticResource Text.EmptyTitle}" Text="Scan your Temp folder" HorizontalAlignment="Center" Margin="0,16,0,8" />
+            <TextBlock Style="{StaticResource Text.Body}" TextAlignment="Center"
+                       Text="The scan only reads: it lists the files in your own Temp folder and explains why each one is or isn't safe to remove. Nothing is changed or deleted." />
+            <Button Style="{StaticResource Button.Primary}" Command="{Binding ScanCommand}" Content="Scan Temp folder" HorizontalAlignment="Center" Margin="0,20,0,0" />
+          </StackPanel>
+        </Border>
+        <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+          <StackPanel>
+            <TextBlock Style="{StaticResource Text.CardTitle}" Text="How SafeClean decides what is safe" Margin="0,0,0,12" />
+            <TextBlock Style="{StaticResource Text.Body}" Text="A file is offered for cleanup only if all of these are true:" Margin="0,0,0,8" />
+            <TextBlock Style="{StaticResource Text.Body}" Text="•  It is inside your own Temp folder, not a shortcut or link to somewhere else." />
+            <TextBlock Style="{StaticResource Text.Body}" Text="{Binding AgeRuleText, StringFormat='•  {0}'}" />
+            <TextBlock Style="{StaticResource Text.Body}" Text="•  It is not read-only, hidden, a system file, or stored in the cloud." />
+            <TextBlock Style="{StaticResource Text.Body}" Text="•  It hasn't changed since the scan (checked again right before any deletion)." />
+            <TextBlock Style="{StaticResource Text.Caption}" Margin="0,12,0,0"
+                       Text="A file's name or extension alone never makes it safe. Programs and scripts are marked 'Needs review'. When in doubt, SafeClean skips the file." />
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+
+    <!-- While scanning -->
+    <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0,12,0,0" Padding="32" VerticalAlignment="Top"
+            Visibility="{Binding IsScanning, Converter={StaticResource BoolToVisibility}}">
+      <StackPanel HorizontalAlignment="Center">
+        <TextBlock Style="{StaticResource Text.EmptyTitle}" Text="Scanning (read-only)…" HorizontalAlignment="Center" />
+        <ProgressBar IsIndeterminate="{Binding IsScanning}" Width="320" Margin="0,16,0,12" />
+        <TextBlock Text="{Binding StatusText}" Style="{StaticResource Text.Body}" HorizontalAlignment="Center" />
       </StackPanel>
     </Border>
 
-    <Border Style="{StaticResource Card}" Margin="0,16,0,0">
-      <StackPanel>
-        <TextBlock Style="{StaticResource Text.CardTitle}" Text="How SafeClean will decide what is safe" Margin="0,0,0,12" />
-        <TextBlock Style="{StaticResource Text.Body}" Text="A file is offered for cleanup only if all of these are true:" Margin="0,0,0,8" />
-        <TextBlock Style="{StaticResource Text.Body}" Text="•  It is inside your own Temp folder, not a shortcut or link to somewhere else." />
-        <TextBlock Style="{StaticResource Text.Body}" Text="{Binding AgeRuleText, StringFormat='•  {0}'}" />
-        <TextBlock Style="{StaticResource Text.Body}" Text="•  It is not read-only, hidden, a system file, or stored in the cloud." />
-        <TextBlock Style="{StaticResource Text.Body}" Text="•  No program is using it, and it hasn't changed since the scan (checked again right before deletion)." />
-        <TextBlock Style="{StaticResource Text.Caption}" Margin="0,12,0,0"
-                   Text="A file's name or extension alone never makes it safe. When in doubt, SafeClean skips the file." />
+    <!-- Cancelled, failed or refused -->
+    <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0,12,0,0" Padding="32" VerticalAlignment="Top"
+            Visibility="{Binding ShowMessage, Converter={StaticResource BoolToVisibility}}">
+      <StackPanel HorizontalAlignment="Center" MaxWidth="580">
+        <TextBlock Style="{StaticResource Text.EmptyTitle}" Text="{Binding MessageTitle}" HorizontalAlignment="Center" />
+        <TextBlock Style="{StaticResource Text.Body}" Text="{Binding MessageBody}" TextAlignment="Center" Margin="0,8,0,0" />
+        <ItemsControl ItemsSource="{Binding RefusalReasons}" Margin="0,12,0,0" Focusable="False"
+                      Visibility="{Binding IsRefused, Converter={StaticResource BoolToVisibility}}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <TextBlock Text="{Binding StringFormat='•  {0}'}" Style="{StaticResource Text.Body}" Foreground="{StaticResource Brush.Warning}" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <Button Style="{StaticResource Button.Secondary}" Command="{Binding ScanCommand}" Content="Scan again" HorizontalAlignment="Center" Margin="0,20,0,0" />
       </StackPanel>
     </Border>
-  </StackPanel>
+
+    <!-- Completed but nothing found -->
+    <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0,12,0,0" Padding="32" VerticalAlignment="Top"
+            Visibility="{Binding IsEmptyResult, Converter={StaticResource BoolToVisibility}}">
+      <StackPanel HorizontalAlignment="Center">
+        <TextBlock Style="{StaticResource Text.EmptyTitle}" Text="Your Temp folder is empty" HorizontalAlignment="Center" />
+        <TextBlock Style="{StaticResource Text.Body}" Text="There is nothing to clean right now." HorizontalAlignment="Center" Margin="0,8,0,0" />
+      </StackPanel>
+    </Border>
+
+    <!-- Dry Run preview: floats over the results so it never squeezes the list -->
+    <Grid Grid.Row="2" Margin="0,12,0,0" Background="{StaticResource Brush.Overlay}"
+          Visibility="{Binding HasPreview, Converter={StaticResource BoolToVisibility}}">
+      <Border Style="{StaticResource Card}" BorderBrush="{StaticResource Brush.Accent}" Padding="24,20" MaxWidth="620" Margin="24"
+              HorizontalAlignment="Center" VerticalAlignment="Center" AutomationProperties.Name="Dry Run preview">
+        <StackPanel>
+          <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+            <TextBlock Text="&#xE946;" FontFamily="{StaticResource Font.Icons}" FontSize="16" Foreground="{StaticResource Brush.Accent}"
+                       VerticalAlignment="Center" Margin="0,0,10,0" />
+            <TextBlock Text="Dry Run preview" Style="{StaticResource Text.CardTitle}" />
+          </StackPanel>
+          <TextBlock Text="{Binding PreviewText}" FontWeight="SemiBold" TextWrapping="Wrap" />
+          <ItemsControl ItemsSource="{Binding PreviewBreakdown}" Margin="0,8,0,0" Focusable="False">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding StringFormat='•  {0}'}" Style="{StaticResource Text.Body}" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock Text="{Binding PreviewDetails}" Style="{StaticResource Text.Body}" Margin="0,8,0,0" />
+          <Button Style="{StaticResource Button.Secondary}" Command="{Binding DismissPreviewCommand}" Content="Close (Esc)"
+                  HorizontalAlignment="Right" Margin="0,16,0,0" />
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <!-- Selection bar -->
+    <StackPanel Grid.Row="3" Visibility="{Binding HasResults, Converter={StaticResource BoolToVisibility}}">
+      <Border Style="{StaticResource Card}" Margin="0,12,0,0" Padding="16,10">
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+            <Button Style="{StaticResource Button.Secondary}" Command="{Binding SelectAllEligibleCommand}" Content="Select all safe" />
+            <Button Style="{StaticResource Button.Secondary}" Command="{Binding ClearSelectionCommand}" Content="Clear" Margin="8,0,0,0" />
+            <Button Style="{StaticResource Button.Primary}" Command="{Binding PreviewCommand}" Content="_Preview cleanup (Dry Run)" Margin="8,0,0,0" />
+          </StackPanel>
+          <TextBlock Text="{Binding SelectionText}" VerticalAlignment="Center" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,12,0" />
+        </DockPanel>
+      </Border>
+    </StackPanel>
+  </Grid>
 </UserControl>

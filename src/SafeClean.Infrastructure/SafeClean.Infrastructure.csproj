@@ -4,6 +4,9 @@
        Must never reference WPF or the App project. -->
   <PropertyGroup>
     <RootNamespace>SafeClean.Infrastructure</RootNamespace>
+    <!-- Needed for the source-generated Windows calls (LibraryImport) and their memory buffers.
+         A test enforces that "unsafe" code only appears in the Native/ folder. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>

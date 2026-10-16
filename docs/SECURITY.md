@@ -4,7 +4,9 @@
 > A skipped file is always preferable to deleting an important one. Uncertainty means *skip*.
 
 Status: **Policy defined (Phase 0); guardrails in place (Phase 1); policy rules implemented and unit-tested
-in `SafeClean.Core` (Phase 2). Real deletion is NOT implemented and is disabled.**
+in `SafeClean.Core` (Phase 2); read-only scanner implemented (Phase 3); Dry Run preview screen (Phase 4);
+handle-based cleanup engine implemented and tested on synthetic sandbox files only (Phase 5).
+Real deletion is NOT enabled: no screen or button can reach the cleanup code (enforced by tests).**
 This document is updated whenever behaviour changes. Values marked *(initial)* may be tuned later,
 but only with a documented reason and matching tests.
 
@@ -91,15 +93,49 @@ Outcome states shown in the UI:
 Estimated recoverable space is always labelled as an *estimate*. Only successfully deleted files count
 as freed space.
 
-## 5. Cleanup procedure (designed now, implemented in Phase 5, enabled in Phase 7)
+### How scanning stays read-only (implemented in Phase 3)
+
+- Every file and folder is opened with **only** `FILE_READ_ATTRIBUTES` (no read, write or delete of
+  contents), with full sharing so other programs are never blocked, and with `FILE_FLAG_OPEN_REPARSE_POINT`
+  so links are opened as themselves. A test pins this access right, and a test proves a file locked by
+  another program can still be inspected (which would fail if more access were requested).
+- Paths are passed to Windows with the `\\?\` prefix only after validation; this also makes paths longer
+  than 260 characters work while the Windows long-path setting is off.
+- "Never enter a link" has three layers: (1) entries listed as links are never queued for entering;
+  (2) each folder is re-inspected just before it is listed and skipped if it became a link or moved;
+  (3) every file's OS-reported location must exactly equal where it was found (C5). A mutation test showed
+  that removing layer 1 alone is still blocked by layer 2, and removing both is caught by tests.
+- Listing a folder uses .NET's path-based enumeration. If a folder were swapped for a junction in the
+  instant between the re-check and the listing, entries from the other location could appear — but only
+  as **Skipped** (layer 3). Deletion never relies on scan-time checks alone (§5).
+- Limits: depth 16, 250,000 entries; unreadable folders are listed as skipped; vanished entries are counted.
+
+### How the Junk Cleaner screen handles selection (implemented in Phase 4)
+
+- Nothing is selected after a scan. "Select all safe" and category checkboxes select only *Eligible*
+  files; *Needs review* files must be ticked one by one; *Skipped* entries can't be selected at all.
+- The selection is kept as **candidate IDs from the current scan session**, never as paths. The Dry Run
+  preview is calculated in Core (`DryRunPlanner`), which ignores and counts any ID that is unknown or not
+  selectable. A new scan discards the old selection.
+- File names are displayed with Unicode direction-control and invisible characters made visible, so a
+  name such as "‮gpj.exe" can't pose as "exe.jpg" (the real extension still marks it *Needs review*).
+- Automated guards: view models only use Core interfaces, and the App project cannot reference cleanup
+  code until Phase 7.
+
+## 5. Cleanup procedure (implemented in Phase 5 — not enabled until Phase 7)
 
 Before any cleanup:
 
 1. User has switched from Dry Run to Real mode **and** confirmed a summary dialog listing the count and
-   total estimated size of the selected files.
+   total estimated size of the selected files. *(The screen's job — Phase 7.)*
 2. Process is not elevated (R8).
 3. The approved root is fully revalidated (R1–R7) and its canonical path and identity are unchanged
    since the scan.
+4. The scan started no more than *(initial)* **30 minutes** ago, and not "in the future" (a clock change
+   makes its age untrustworthy).
+5. The requested mode is exactly Dry Run or Real; any other value is refused, never treated as Real.
+
+If any of 2–5 fails, the cleanup service refuses the **whole request** and touches no file.
 
 For each selected candidate, in order:
 
@@ -116,9 +152,37 @@ For each selected candidate, in order:
 After cleanup the report shows deleted, failed and skipped files separately. Skipped files are never
 reported as cleaned.
 
+### How the engine is built (implemented in Phase 5)
+
+- **One file can delete:** `Infrastructure/Cleanup/HandleBasedFileDeleter.cs`. A test fails if the
+  delete access right, `SetFileInformationByHandle` or the disposition structure appears in any other
+  source file. Another test allows only `CleanupService` to call the engine, and the App project can't
+  reference either of them until Phase 7.
+- **Decisions are pure logic in Core** (`CleanupPolicy`), unit-tested with plain data: the whole-request
+  checks above, D1 + D2 (the recorded facts are judged again by today's rules, so a forged "eligible"
+  verdict doesn't help), and D4.
+- **Layered re-checks:** the engine repeats D1/D2 itself, so it can't be pointed at anything the rules
+  wouldn't select (not even with a different root), and D4 independently requires the file to be
+  selectable *now*. D4 then requires an exact match with the scan on location (path and OS-reported final
+  path), identity, size, last-write time, creation time and attributes, and exactly one link.
+- **The exclusive handle:** `DELETE | FILE_READ_ATTRIBUTES | SYNCHRONIZE` (no reading or writing of
+  contents), share mode *none*, `FILE_FLAG_OPEN_REPARSE_POINT`, and no backup semantics, so a folder
+  can't even be opened. All D4 facts are read through this same handle.
+- **Windows errors never count as deleted:** missing → *skipped (missing)*, in use → *skipped (in use)*,
+  access denied → *skipped (access denied)*, anything else → *failed*. Bytes are added only after the
+  disposition succeeded **and** the handle is closed.
+- **One file at a time.** Cancellation is checked between files and never throws; files not reached are
+  listed as "not attempted". An unexpected error stops the cleanup instead of carrying on. The report
+  lists every selected ID exactly once, and a Dry Run report can never contain a deletion.
+- **Dry Run** re-inspects each file through the scanner's read-only handle and applies the same D4
+  comparison; nothing is opened exclusively or changed.
+- **Audit log (D7):** one line per file with its outcome, its path relative to the Temp folder and the
+  Windows error code, plus a summary line. Unknown items are logged as "(item N, path not shown)".
+
 ### Things SafeClean never does
 
-Delete by path (`DeleteFile`, `File.Delete`, `Directory.Delete`), delete directories, use wildcards,
+Delete by path (`DeleteFile`, `File.Delete`, `Directory.Delete`, delete-on-close), move or overwrite
+files, delete directories, use wildcards,
 use `cmd.exe`/PowerShell/shell APIs for deletion, call broad cleanup APIs, change file attributes,
 take ownership, change ACLs, bypass permission errors, close or kill processes, schedule
 delete-on-reboot, or securely wipe data.
@@ -177,6 +241,8 @@ creating links in Temp, a misconfigured `TEMP` variable, race conditions, accide
 | T15 | Monitoring changes system state | Monitoring uses read-only APIs only; no kill, trim, standby-list or virtual-memory APIs (enforced by test). |
 | T16 | Crash during cleanup | Each file is deleted independently; partial results are reported; errors are logged, not fatal. |
 | T17 | Malicious or compromised dependency | Only Microsoft and xUnit packages; versions pinned centrally; lock files; NuGet vulnerability audit fails the build. |
+| T18 | File name disguised with hidden or right-to-left characters | Names shown with such characters revealed; the real extension still decides "Needs review". |
+| T19 | Something else changes the Temp folder (Windows Storage Sense, installers) | Scans are snapshots; cleanup revalidates every file (§5); unexpected changes are investigated, not assumed. |
 
 ## 8. Performance monitoring safety
 
@@ -200,6 +266,11 @@ uses spare RAM as a cache, so high usage is normal and "freeing" it usually make
   exact (ordinal) matching of OS-produced strings, which errs toward skipping.
 - Freed space is the sum of logical file sizes; the actual change in free disk space can differ
   (cluster rounding, compression, other programs writing).
+- File symbolic links can't be created in automated tests on this PC without Developer Mode, so those two
+  tests are skipped (reported, not hidden). Folder links (junctions) are fully tested, and file symlinks are
+  rejected by the same reparse-point rule, which has its own unit tests.
+- Protected folders redirected to network shares are left out of the protected list (they can't be inside
+  the local Temp folder); the number left out is logged.
 - No perfect race-freedom claim — see section 6.
 
 ## 11. Deliberately unsupported in version 1

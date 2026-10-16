@@ -23,6 +23,20 @@ public sealed class PolicyTextTests
         Assert.All(Enum.GetValues<CandidateCategory>(), value => Assert.False(string.IsNullOrWhiteSpace(PolicyText.Describe(value))));
 
     [Fact]
+    public void EveryCleanupOutcomeHasText() =>
+        Assert.All(Enum.GetValues<CleanupOutcome>(), value => Assert.False(string.IsNullOrWhiteSpace(PolicyText.Describe(value))));
+
+    [Fact]
+    public void EveryCleanupRefusalHasText() =>
+        Assert.All(Enum.GetValues<CleanupRefusal>(), value => Assert.False(string.IsNullOrWhiteSpace(PolicyText.Describe(value))));
+
+    [Fact]
+    public void UninitialisedCleanupOutcome_IsASkip_NeverADeletion()
+    {
+        Assert.Equal(CleanupOutcome.SkippedPolicy, default(CleanupOutcome));
+    }
+
+    [Fact]
     public void SkippedIsTheDefaultStatus()
     {
         // An uninitialised status must never mean "eligible".

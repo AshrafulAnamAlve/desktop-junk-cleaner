@@ -25,6 +25,7 @@
 
   <!-- States (Danger is reserved for destructive actions) -->
   <Color x:Key="Color.Success">#4CC38A</Color>
+  <Color x:Key="Color.Success.Soft">#183325</Color>
   <Color x:Key="Color.Warning">#E3B341</Color>
   <Color x:Key="Color.Warning.Soft">#33291A</Color>
   <Color x:Key="Color.Danger">#F2645A</Color>
@@ -48,12 +49,15 @@
   <SolidColorBrush x:Key="Brush.Accent.Soft" Color="{StaticResource Color.Accent.Soft}" />
   <SolidColorBrush x:Key="Brush.Accent.SoftText" Color="{StaticResource Color.Accent.SoftText}" />
   <SolidColorBrush x:Key="Brush.Success" Color="{StaticResource Color.Success}" />
+  <SolidColorBrush x:Key="Brush.Success.Soft" Color="{StaticResource Color.Success.Soft}" />
   <SolidColorBrush x:Key="Brush.Warning" Color="{StaticResource Color.Warning}" />
   <SolidColorBrush x:Key="Brush.Warning.Soft" Color="{StaticResource Color.Warning.Soft}" />
   <SolidColorBrush x:Key="Brush.Danger" Color="{StaticResource Color.Danger}" />
   <SolidColorBrush x:Key="Brush.Disabled.Background" Color="{StaticResource Color.Disabled.Background}" />
   <SolidColorBrush x:Key="Brush.Disabled.Text" Color="{StaticResource Color.Disabled.Text}" />
   <SolidColorBrush x:Key="Brush.Focus" Color="{StaticResource Color.Focus}" />
+  <!-- Dims the page behind a floating panel -->
+  <SolidColorBrush x:Key="Brush.Overlay" Color="#D90F1216" />
 
   <!-- Fonts built into Windows (Windows 11 names first, Windows 10 fallbacks second) -->
   <FontFamily x:Key="Font.Text">Segoe UI Variable Text, Segoe UI</FontFamily>

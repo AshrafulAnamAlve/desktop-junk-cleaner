@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+
 namespace SafeClean.Infrastructure.Tests.Sandbox;
 
 /// <summary>
@@ -32,6 +34,45 @@ internal sealed class TestSandbox : IDisposable
         return full;
     }
 
+    public string CreateDirectory(string relativePath)
+    {
+        var path = PathFor(relativePath);
+        Directory.CreateDirectory(path);
+        return path;
+    }
+
+    /// <summary>Creates a synthetic file, by default dated 30 days ago so the age rule doesn't skip it.</summary>
+    public string CreateFile(string relativePath, string content = "synthetic test data", int ageDays = 30)
+    {
+        var path = PathFor(relativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, content);
+        if (ageDays > 0)
+        {
+            SetAge(path, ageDays);
+        }
+
+        return path;
+    }
+
+    public static void SetAge(string path, int days)
+    {
+        var time = DateTime.UtcNow.AddDays(-days);
+        File.SetCreationTimeUtc(path, time);
+        File.SetLastWriteTimeUtc(path, time);
+    }
+
+    /// <summary>
+    /// Records size, dates, attributes and a SHA-256 hash of every file in the sandbox (links are recorded
+    /// but not followed). Used to prove a scan changed nothing.
+    /// </summary>
+    public SortedDictionary<string, string> Snapshot()
+    {
+        var snapshot = new SortedDictionary<string, string>(StringComparer.Ordinal);
+        SnapshotFolder(Root, snapshot);
+        return snapshot;
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(Root))
@@ -40,6 +81,36 @@ internal sealed class TestSandbox : IDisposable
         }
     }
 
+    private void SnapshotFolder(string folder, SortedDictionary<string, string> snapshot)
+    {
+        foreach (var entry in new DirectoryInfo(folder).EnumerateFileSystemInfos("*", OneLevel))
+        {
+            var key = Path.GetRelativePath(Root, entry.FullName);
+            if (entry.Attributes.HasFlag(FileAttributes.ReparsePoint))
+            {
+                snapshot[key] = $"link attrs={entry.Attributes} target={entry.LinkTarget}";
+            }
+            else if (entry is DirectoryInfo directory)
+            {
+                snapshot[key] = $"dir attrs={directory.Attributes}";
+                SnapshotFolder(directory.FullName, snapshot);
+            }
+            else if (entry is FileInfo file)
+            {
+                // Last-access time is deliberately not compared: reading the file for the hash updates it.
+                snapshot[key] = $"file len={file.Length} created={file.CreationTimeUtc.Ticks} written={file.LastWriteTimeUtc.Ticks} attrs={file.Attributes} sha256={Hash(file.FullName)}";
+            }
+        }
+    }
+
+    private static string Hash(string path)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        return Convert.ToHexString(SHA256.HashData(stream));
+    }
+
+    private static readonly EnumerationOptions OneLevel = new() { AttributesToSkip = 0, RecurseSubdirectories = false, IgnoreInaccessible = false };
+
     private static void DeleteTree(string directory)
     {
         if (!IsInside(BaseDirectory, directory))
@@ -47,8 +118,7 @@ internal sealed class TestSandbox : IDisposable
             throw new InvalidOperationException($"Refusing to delete '{directory}': it is outside the test sandbox base.");
         }
 
-        var options = new EnumerationOptions { AttributesToSkip = 0, RecurseSubdirectories = false, IgnoreInaccessible = false };
-        foreach (var entry in new DirectoryInfo(directory).EnumerateFileSystemInfos("*", options))
+        foreach (var entry in new DirectoryInfo(directory).EnumerateFileSystemInfos("*", OneLevel))
         {
             if (entry.Attributes.HasFlag(FileAttributes.ReparsePoint))
             {

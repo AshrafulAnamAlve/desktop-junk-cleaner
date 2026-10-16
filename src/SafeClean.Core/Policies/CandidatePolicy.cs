@@ -130,6 +130,29 @@ public static class CandidatePolicy
         return new CandidateDecision(status, reasons, Categorize(name, extension), relativePath);
     }
 
+    /// <summary>
+    /// Verdict for an entry that could not be inspected or was deliberately not entered
+    /// (for example an unreadable folder, or one beyond the depth limit). Always skipped.
+    /// </summary>
+    public static CandidateDecision Skip(string path, CandidatePolicyContext context, params SkipReason[] reasons)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(reasons);
+        if (reasons.Length == 0)
+        {
+            throw new ArgumentException("At least one reason is required.", nameof(reasons));
+        }
+
+        var root = context.Root.CanonicalPath;
+        var valid = PathValidator.IsValid(path);
+        var relativePath = valid && WindowsPath.IsStrictlyInside(root, path, StringComparison.Ordinal)
+            ? WindowsPath.GetRelativePath(root, path)
+            : null;
+        var name = valid ? WindowsPath.GetName(path) : string.Empty;
+
+        return new CandidateDecision(CandidateStatus.Skipped, reasons.Distinct().ToList(), Categorize(name, WindowsPath.GetExtension(name)), relativePath);
+    }
+
     private static CandidateCategory Categorize(string name, string extension)
     {
         if (TemporaryExtensions.Contains(extension) || name.StartsWith('~'))

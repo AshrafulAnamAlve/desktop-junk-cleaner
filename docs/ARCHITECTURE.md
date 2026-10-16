@@ -1,6 +1,6 @@
 # SafeClean Architecture
 
-## Layout (created in Phase 1; `SafeClean.App.Tests` will be added in Phase 4)
+## Layout (created in Phase 1; `SafeClean.App.Tests` added in Phase 4)
 
 ```
 Desktop-Clean-App/              ← workspace root (the solution lives here, not in a nested SafeClean/ folder,
@@ -11,7 +11,9 @@ Desktop-Clean-App/              ← workspace root (the solution lives here, not
 ├─ Directory.Packages.props     ← the single list of NuGet packages and versions
 ├─ src/
 │  ├─ SafeClean.App/            ← WPF user interface (MVVM)
-│  │  ├─ Mvvm/                  ← tiny hand-written MVVM helpers (ObservableObject; RelayCommand from Phase 4)
+│  │  ├─ Mvvm/                  ← tiny hand-written MVVM helpers (ObservableObject, RelayCommand, AsyncRelayCommand)
+│  │  ├─ Presentation/          ← display formatting (sizes, dates, revealing disguised names)
+│  │  ├─ Converters/            ← small XAML value converters
 │  │  ├─ ViewModels/
 │  │  ├─ Views/
 │  │  ├─ Resources/             ← theme colours and control styles
@@ -20,9 +22,16 @@ Desktop-Clean-App/              ← workspace root (the solution lives here, not
 │  │  └─ MainWindow.xaml(.cs)
 │  ├─ SafeClean.Core/           ← pure logic: models, interfaces, safety policies. No file access.
 │  │  ├─ Models/                ← FileFacts, FileIdentity, ApprovedRoot, decisions, reason codes
-│  │  ├─ Policies/              ← PathValidator, WindowsPath, ProtectedLocations, RootPolicy, CandidatePolicy, PolicyText
-│  │  └─ Interfaces/
+│  │  ├─ Policies/              ← PathValidator, WindowsPath, ProtectedLocations, RootPolicy, CandidatePolicy,
+│  │  │                            DryRunPlanner, CleanupPolicy, PolicyText
+│  │  └─ Interfaces/            ← ITempRootResolver, ITempScanner, ICleanupService, IElevationProbe
 │  └─ SafeClean.Infrastructure/ ← talks to Windows: scanning, cleanup, monitoring, logging
+│     ├─ Native/                ← the only place with direct Windows calls and "unsafe" code
+│     ├─ Scanning/              ← FileInspector, RootFactsReader, KnownProtectedLocations, TempRootResolver, TempScanner
+│     ├─ Cleanup/               ← HandleBasedFileDeleter (the ONLY code that can delete), CleanupService, AttemptResult
+│     │                            (Phase 5; not reachable from the App until Phase 7)
+│     ├─ Logging/
+│     └─ Environment/           ← administrator detection
 ├─ tests/
 │  ├─ SafeClean.Core.Tests/
 │  ├─ SafeClean.Infrastructure.Tests/
@@ -75,13 +84,21 @@ Exact versions and hashes of all transitive packages are recorded in each projec
 
 ## Planned data flow
 
-**Scan (read-only):** Junk Cleaner view model → `ITempScanner` (Infrastructure) → root resolver
-validates the Temp root (R1–R8) → enumerator walks files without following reparse points → for each
-file, read-only handle gathers facts → `CandidatePolicy` (Core) classifies → results to UI.
+**Scan (read-only, implemented in Phases 3–4):** Junk Cleaner view model → `ITempScanner`
+(`TempScanner`) → `ITempRootResolver` (`TempRootResolver` → `RootFactsReader` → `RootPolicy`) approves
+the Temp root → folders listed one level at a time, links never entered, each folder re-checked before
+listing → each entry inspected by `FileInspector` (read-attributes handle) → `CandidatePolicy` classifies
+→ `ScanSession` with `ScanSummary` back to the UI. The user ticks rows; the view model keeps candidate IDs;
+**Dry Run preview** = `DryRunPlanner.Create(session, ids)` in Core (unknown or non-selectable IDs ignored).
 
-**Cleanup (Phase 5+, enabled Phase 7):** UI sends the IDs of selected scan results → `ICleanupService`
-revalidates root and each file through an exclusive handle → deletes that same handle → returns
-deleted / failed / skipped lists and bytes freed from successes only.
+**Cleanup (implemented in Phase 5, connected to the UI in Phase 7):** the screen will send the scan
+session and the IDs of the selected entries → `ICleanupService` (`CleanupService`) refuses the whole
+request if elevated, the scan is older than 30 minutes, or `CleanupPolicy.CheckRoot` finds the re-resolved
+Temp folder refused or different → for each ID, one at a time: `CleanupPolicy.CheckRecorded` (D1 + D2) →
+Real mode: `HandleBasedFileDeleter` opens the file exclusively, reads its facts through that handle
+(`FileInspector.ReadFacts`), `CleanupPolicy.CheckCurrent` (D4), marks that handle for deletion and closes
+it; Dry Run: read-only re-inspection with the same D4 check → `CleanupReport` with one entry per ID and
+bytes freed from deletions only; one audit log line per file with its Temp-relative path.
 
 ## Threading
 

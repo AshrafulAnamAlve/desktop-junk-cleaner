@@ -95,9 +95,9 @@
         <TextBlock Text="{Binding CurrentPage.Subtitle}" Style="{StaticResource Text.PageSubtitle}" />
       </StackPanel>
 
-      <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
-        <ContentControl Content="{Binding CurrentPage}" Margin="40,0,40,32" Focusable="False" VerticalAlignment="Top" />
-      </ScrollViewer>
+      <!-- Each page handles its own scrolling, so long lists can virtualise inside a fixed-height area. -->
+      <ContentControl Grid.Row="1" Content="{Binding CurrentPage}" Focusable="False" />
+
     </Grid>
   </Grid>
 </Window>

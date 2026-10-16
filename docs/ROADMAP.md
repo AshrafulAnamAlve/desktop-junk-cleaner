@@ -14,9 +14,9 @@ Detailed plan for each phase: [`docs/phases/`](phases/README.md) (one file per p
 | 0 | Environment inspection, requirements, threat model, plan | Done |
 | 1 | Solution, conventions, WPF shell, DI, logging, test projects | Done (2026-10-15) |
 | 2 | Core safety policies (path validation, root rules, candidate rules) + unit tests | Done (2026-10-15) |
-| 3 | Read-only Temp scanner + sandbox integration tests | Not started |
-| 4 | Junk Cleaner screen: Dry Run preview, categories, checkboxes (no deletion code) | Not started |
-| 5 | Handle-based cleanup engine + audit logging (not connected to UI) | Not started |
+| 3 | Read-only Temp scanner + sandbox integration tests | Done (2026-10-16) |
+| 4 | Junk Cleaner screen: Dry Run preview, categories, checkboxes (no deletion code) | Done (2026-10-16) |
+| 5 | Handle-based cleanup engine + audit logging (not connected to UI) | Done (2026-10-16) |
 | 6 | Cleanup test gate: races, replacement, locks, partial failures, byte accounting | Not started |
 | 7 | Connect cleanup to UI behind Real mode + confirmation + result report | Not started |
 | 8 | Read-only RAM / CPU / disk / process monitoring services + tests | Not started |
@@ -55,24 +55,29 @@ Detailed plan for each phase: [`docs/phases/`](phases/README.md) (one file per p
 - [x] Plain-English text for every reason
 - [x] Verified: 0 warnings; 281/281 tests pass (239 new); mutation check caught 4/4 planted bugs
 
-## Phase 3 – Read-only scanner
-- [ ] Native interop layer (`CreateFileW`, `GetFileInformationByHandleEx`, `GetFinalPathNameByHandleW`)
-- [ ] Root resolver implementing R1–R8
-- [ ] Enumerator that never follows reparse points, with depth limit and cancellation
-- [ ] Sandbox test helpers (junctions, hard links, attributes) that never touch real user folders
-- [ ] Integration tests: junction/symlink/hard link/attributes/locked/Unicode/long path/cancellation/empty
+## Phase 3 – Read-only scanner ✅ (2026-10-16)
+- [x] Native interop layer (`CreateFileW`, `GetFileInformationByHandleEx`, `GetFinalPathNameByHandleW`, `GetVolumeInformationByHandleW`, `SHGetKnownFolderPath`) — read-attributes right only
+- [x] Root resolver (R1–R7 via `RootPolicy`; R8 is checked at cleanup time in Phase 5)
+- [x] Protected locations built from this PC's real folders
+- [x] Scanner that never follows reparse points (two layers + policy final-path check), depth limit, entry cap, cancellation, progress
+- [x] Sandbox test helpers (junctions, hard links, symlinks-or-skip, attributes, ACLs, snapshots) that never touch real user folders
+- [x] Integration tests: junction/symlink/hard link/attributes/locked/no-permission/Unicode/long path/depth/cancellation/churn/empty/snapshot
+- [x] Verified: 0 warnings; 341 passed, 3 skipped (documented); real Temp scanned read-only (24,896 entries, ≈4.6 GB estimated recoverable); mutation check passed
 
-## Phase 4 – Dry Run preview
-- [ ] Junk Cleaner screen with categories, per-file and per-category checkboxes
-- [ ] Details: name, full path, size, modified time, status, reason
-- [ ] Estimated size clearly labelled
-- [ ] No deletion code referenced from the UI
+## Phase 4 – Dry Run preview ✅ (2026-10-16)
+- [x] Junk Cleaner screen with categories (tri-state, safe files only), per-file checkboxes, filters and search
+- [x] Details: name, full path, size, modified/created time, status, category, reasons
+- [x] Estimated size clearly labelled; Dry Run preview computed by Core from candidate IDs
+- [x] No deletion code referenced from the UI (enforced by test); disguised file names revealed
+- [x] Verified: 0 warnings; 396 passed, 3 skipped; real read-only scan and preview driven through the app; layout issue found and fixed
 
-## Phase 5 – Cleanup engine
-- [ ] Handle-based deletion (D1–D7) in a single, isolated class
-- [ ] Root revalidation before cleanup; elevation check
-- [ ] Audit log with root-relative paths
-- [ ] Not connected to the UI
+## Phase 5 – Cleanup engine ✅ (2026-10-16)
+- [x] Handle-based deletion (D1–D7) in a single, isolated class (`HandleBasedFileDeleter`); decisions in Core (`CleanupPolicy`)
+- [x] Whole-request refusal: elevated, unknown mode, scan older than 30 minutes, Temp folder refused or no longer the same folder
+- [x] Dry Run mode: read-only re-check, "would delete / would skip"
+- [x] Audit log with root-relative paths; cancellation between files; report lists every selected ID once
+- [x] Not connected to the UI (architecture test); delete APIs allowed in one file only (forbidden-API test)
+- [x] Verified: 0 warnings; 508 passed, 3 skipped; tests on synthetic sandbox files only; mutation check caught 11/12 planted bugs (the 12th is backed up by a second layer)
 
 ## Phase 6 – Cleanup test gate (must pass before Phase 7)
 - [ ] All tests listed in `TESTING.md` § "Gate before enabling real deletion"

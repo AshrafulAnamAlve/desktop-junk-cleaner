@@ -1,6 +1,6 @@
 # Phase 3 — Read-Only Temp Scanner
 
-**Status:** Not started · **Depends on:** Phase 2 · **Deletes anything?** No
+**Status:** ✅ Done (2026-10-16) · **Depends on:** Phase 2 · **Deletes anything?** No
 **Touches the disk?** Reads only. The real Temp folder is only ever *read*.
 
 ## Goal
@@ -17,88 +17,68 @@ Each file is classified by the Phase 2 policy as Eligible, Needs review or Skipp
   through a handle (size, ID, real location) gives answers about *that* file, even if names change.
   The scanner opens files only with "read attributes" permission and lets everyone else keep using them.
 
-## Tasks
+## What was built
 
-### Native interop (`src/SafeClean.Infrastructure/Native/`)
-- [ ] `NativeMethods` using `LibraryImport` + `DefaultDllImportSearchPaths(System32)`:
-      `CreateFileW`, `GetFileInformationByHandleEx` (`FileBasicInfo`, `FileStandardInfo`, `FileIdInfo`,
-      `FileAttributeTagInfo`), `GetFinalPathNameByHandleW`, `GetVolumeInformationByHandleW`
-- [ ] All handles wrapped in `SafeFileHandle` (closed automatically, even on errors)
-- [ ] Win32 error codes mapped to `SkipReason` (`Inaccessible`, missing, etc.); never thrown to the UI
-
-### File inspector
-- [ ] `FileInspector.TryInspect(path)` opens with `FILE_READ_ATTRIBUTES`, share **read+write+delete**,
-      `OPEN_EXISTING`, `FILE_FLAG_OPEN_REPARSE_POINT` (+ `FILE_FLAG_BACKUP_SEMANTICS` for directories only)
-- [ ] Never requests write or delete access (enforced by a test that inspects the flags used)
-
-### Root resolver (rules R1–R7)
-- [ ] `TempRootResolver` — `Path.GetTempPath()` → full path → checks fixed NTFS drive → walks every parent
-      checking for reparse attributes → opens directory handle → reads identity of both the Temp folder and
-      `%LOCALAPPDATA%\Temp` → builds `RootFacts` → `RootPolicy.Evaluate` (Phase 2) decides
-- [ ] Strip the `\\?\` prefix from `GetFinalPathNameByHandle` results (Core rejects it); refuse `\\?\UNC\` results
-- [ ] `KnownProtectedLocations` builder: `ProtectedLocations` from `Environment.GetFolderPath` known folders,
-      plus `<drive>:\$Recycle.Bin` and `<drive>:\System Volume Information`
-- [ ] Returns either an `ApprovedRoot` or the `RootProblem` list (shown with `PolicyText`)
-- [ ] `ScanCandidate` model (moved from Phase 2): candidate ID, `FileFacts` (or none if unreadable), `CandidateDecision`
-
-### Scanner
-- [ ] `ITempScanner` (Core) / `TempScanner` (Infrastructure): `ScanAsync(IProgress<ScanProgress>, CancellationToken)`
-- [ ] Iterative (stack-based) walk, one directory level at a time, using `EnumerationOptions`
-      (`RecurseSubdirectories = false`, `AttributesToSkip = 0`, `IgnoreInaccessible = true`)
-- [ ] Reparse-point directories are **listed as skipped and never entered**
-- [ ] Depth limit 16; safety cap on entries (initial 250,000) with a visible "scan truncated" warning
-- [ ] Every file → `FileInspector` → `CandidatePolicy` → `ScanCandidate`
-- [ ] Runs on a background thread; checks cancellation between entries
-- [ ] Returns a `ScanSession`: session ID, root + identity, start/end time, candidates, totals per status
-      (estimated bytes, clearly named `EstimatedRecoverableBytes`)
-
-### Test sandbox helpers (`tests/SafeClean.Infrastructure.Tests/Sandbox/`)
-- [ ] `TestSandbox` — creates `bin/.../TestSandbox/<guid>/root` and `.../outside`; teardown removes links
-      first (without following them), verifies every path is inside the sandbox before removing
-- [ ] `Junction.Create(link, target)` via `DeviceIoControl(FSCTL_SET_REPARSE_POINT)` — no admin, no shell
-- [ ] `HardLink.Create` via `CreateHardLinkW`
-- [ ] File symlink via `File.CreateSymbolicLink`; if Windows refuses (no Developer Mode), test is **skipped** with reason
-- [ ] Helpers for attributes, timestamps (make files "8 days old"), and locked files (`FileShare.None`)
-- [ ] Sandbox roots go through the **same** `RootPolicy`: tests supply the sandbox folder's own identity as the
-      expected identity (no bypass code exists — decided in Phase 2)
-
-## Tests
-
-| Case | Expected |
+### Core additions (`src/SafeClean.Core/`)
+| Type | Purpose |
 |---|---|
-| Plain old file in root | Eligible, correct size/time/ID |
-| File in nested folder | Eligible, correct relative path |
-| Junction in root → `outside` folder | Junction listed as skipped; files in `outside` never appear |
-| File symlink → `outside` file | Skipped (reparse) or test skipped if privilege missing |
-| Hard-linked file | Skipped (`MultipleHardLinks`) |
-| Read-only / hidden / system file | Skipped; attributes unchanged after scan |
-| Recent file | Skipped (`TooRecent`) |
-| Locked file (other handle open, no sharing) | Still inspectable (read-attributes) or `Inaccessible`; never modified |
-| Folder with access denied (ACL) | Skipped, scan continues |
-| Unicode / emoji / RTL / leading-dot names | Correct |
-| Path > 260 characters | Inspected correctly |
-| Depth > 16 | Deeper entries reported as `TooDeep` |
-| Empty root | Empty session, no errors |
-| Cancellation mid-scan | Returns promptly with `OperationCanceledException`; nothing changed |
-| Files added/removed during scan | No crash; disappeared files skipped |
-| Snapshot check | Hash + timestamps + attributes of every sandbox file identical before and after scanning |
-| Real Temp root resolution (read-only) | Resolver accepts this PC's real Temp; **no files created or changed** |
-| `TEMP` redirected (resolver given a fake env path) | Refused with reason |
+| `CandidateId`, `ScanCandidate` | One listed entry (ID within its session, path, facts or none, decision) |
+| `ScanSummary` | Counts and bytes per status; `EstimatedRecoverableBytes` (clearly an estimate) |
+| `ScanSession`, `ScanResult`, `ScanProgress`, `RootResolution` | Scan output, refusal, progress, root decision + protected list |
+| `ITempScanner`, `ITempRootResolver` | Interfaces the UI will use (Phase 4) |
+| `CandidatePolicy.Skip(...)` | Verdict for entries that couldn't be inspected or weren't entered |
+| `SafetyDefaults.MaxScanEntries` | 250,000-entry safety cap |
 
-## Verification
+### Infrastructure (`src/SafeClean.Infrastructure/`)
+| File | Purpose |
+|---|---|
+| `Native/NativeMethods.cs` | `CreateFileW`, `GetFileInformationByHandleEx`, `GetFinalPathNameByHandleW`, `GetVolumeInformationByHandleW`, `SHGetKnownFolderPath` — `LibraryImport`, System32 only, **read-attributes right only** |
+| `Native/HandleQueries.cs` | Safe wrappers (buffers, final path, file system name, known folders, FILETIME conversion) |
+| `Native/ExtendedPath.cs` | Adds/removes the `\\?\` prefix (long paths; network results left for the validator to reject) |
+| `Scanning/FileInspector.cs` | Opens one file/folder read-only (`FILE_READ_ATTRIBUTES`, full sharing, `FILE_FLAG_OPEN_REPARSE_POINT`) and returns `FileFacts` |
+| `Scanning/RootFactsReader.cs` | Gathers `RootFacts` (used for the real Temp folder *and* sandboxes) |
+| `Scanning/KnownProtectedLocations.cs` | Protected list from this PC's real folders (special folders, Downloads & co. via known-folder IDs, OneDrive, Recycle Bin, System Volume Information, profile/AppData exact paths); non-local entries dropped and counted in the log |
+| `Scanning/TempRootResolver.cs` | `Path.GetTempPath()` vs `%LOCALAPPDATA%\Temp` → `RootPolicy` |
+| `Scanning/TempScanner.cs` | The walk (details below) |
 
-- Build 0 warnings; all tests pass; skipped tests listed with reasons in `TESTING.md`.
-- Manual: a read-only scan of the real Temp from a test console/command; compare file count and
-  total size roughly against Explorer's folder properties. No changes made.
+### How the scanner walks (defence in depth)
+1. Folders are listed **one level at a time**; entries marked as links are **never queued** for entering.
+2. Each folder is **re-inspected just before it is listed**; if it became a link or its real location changed, it is reported as skipped instead.
+3. Every file (and every link) is opened **as itself** and judged by `CandidatePolicy`, which requires the
+   OS-reported location to equal the found location exactly — so even a folder swapped mid-scan can only
+   produce *skipped* entries.
+4. Depth limit 16, 250,000-entry cap, cancellation checked between entries, runs on a background thread.
+5. Unreadable folders are listed as skipped (`Inaccessible`); entries that disappear mid-scan are counted, not errors.
+
+### Test tools (`tests/SafeClean.Infrastructure.Tests/Sandbox/`)
+`TestSandbox` (create aged files, snapshot with SHA-256), `FileSystemLinks` (junctions via
+`DeviceIoControl`, hard links via `CreateHardLinkW`, symlinks or skip), `SandboxRootResolver`
+(same `RootFactsReader` + `RootPolicy`, expected identity = the sandbox itself), `SyncProgress`.
+
+## Changes from the original plan (and why)
+
+| Change | Reason |
+|---|---|
+| No test-only root factory | Decided in Phase 2: sandbox passes the real rules with its own identity as "expected" |
+| `\\?\` prefix always used when opening | Windows' long-path setting is off on this PC; the prefix makes > 260-character paths work (verified by tests) |
+| `unsafe` allowed in Infrastructure (`AllowUnsafeBlocks`) | Required by generated native calls; a new test restricts `unsafe` to `Native/` |
+| Real-Temp scan is an **Explicit** test | Runs only on request (`--explicit only`), prints totals only |
+| DI registration of the scanner moved to Phase 4 | Nothing in the UI uses it yet |
+
+## Verification results (actually run, 2026-10-16)
+
+| Check | Result |
+|---|---|
+| `dotnet build SafeClean.sln -c Debug` | ✅ 0 warnings, 0 errors |
+| `dotnet test --solution SafeClean.sln -c Debug` | ✅ 341 passed, 0 failed, 3 skipped (Core 281 passed; Infrastructure 60 passed + 3 skipped) — 60 new test cases this phase |
+| Skipped tests | Real-Temp scan (Explicit, run separately below); 2 file-symlink tests — Windows refuses symlink creation without Developer Mode ("A required privilege is not held by the client"). Folder links (junctions) are fully tested and file symlinks are covered by the reparse-point rule tests |
+| Snapshot test | ✅ SHA-256, sizes, dates and attributes of every sandbox file identical before and after scanning |
+| Sandbox cleanup | ✅ 0 entries left in `TestSandbox` |
+| Read-only scan of the **real** Temp folder (Explicit test) | ✅ 10.6 s; 7,135 folders; 24,896 entries; Eligible 5,127 files / 3,385.8 MB; Needs review 3,863 / 1,248.4 MB; Skipped 15,906 / 2,056.3 MB (TooRecent 15,893, DisallowedAttributes 421, Inaccessible 2); estimated recoverable 4,634.2 MB; 0 links, 0 vanished, not truncated |
+| Mutation check | ✅ Inspector following links → 5 tests fail; both "don't enter links" layers removed → caught. Removing only layer 1 is (correctly) still blocked by layer 2. Sources verified restored, then `--no-incremental` rebuild |
 
 ## Done when
 
-- [ ] Scanner and resolver pass all tests above
-- [ ] `ForbiddenApiTests` still pass (scanner contains no delete/write access)
-- [ ] `SECURITY.md` updated with any discovered behaviour (e.g. real-world reparse points in Temp)
-
-## Risks
-
-- **Struct layout errors in native calls** → cross-check size/attributes/time against `FileInfo` in tests.
-- **Short (8.3) names from `GetTempPath`** → comparisons use OS-reported final paths and file identity, not raw strings.
-- **Huge folders** → cap, progress, cancellation.
+- [x] Scanner and resolver pass all tests above
+- [x] `ForbiddenApiTests` still pass (scanner contains no delete/write access)
+- [x] `SECURITY.md` updated with the implemented scanning behaviour

@@ -8,9 +8,9 @@ One file per phase. Each file says **what** the phase builds, **why**, **which f
 | 0 | Environment, requirements, threat model, plan | [PHASE-00](PHASE-00-environment-and-plan.md) | ✅ Done |
 | 1 | Solution skeleton, conventions, WPF shell | [PHASE-01](PHASE-01-solution-skeleton.md) | ✅ Done (2026-10-15) |
 | 2 | Core safety policies (pure logic) | [PHASE-02](PHASE-02-core-safety-policies.md) | ✅ Done (2026-10-15) |
-| 3 | Read-only Temp scanner | [PHASE-03](PHASE-03-read-only-scanner.md) | Not started |
-| 4 | Dry Run preview screen | [PHASE-04](PHASE-04-dry-run-preview.md) | Not started |
-| 5 | Cleanup engine (not connected to UI) | [PHASE-05](PHASE-05-cleanup-engine.md) | Not started |
+| 3 | Read-only Temp scanner | [PHASE-03](PHASE-03-read-only-scanner.md) | ✅ Done (2026-10-16) |
+| 4 | Dry Run preview screen | [PHASE-04](PHASE-04-dry-run-preview.md) | ✅ Done (2026-10-16) |
+| 5 | Cleanup engine (not connected to UI) | [PHASE-05](PHASE-05-cleanup-engine.md) | ✅ Done (2026-10-16) |
 | 6 | Cleanup test gate | [PHASE-06](PHASE-06-cleanup-test-gate.md) | Not started |
 | 7 | Enable cleanup in the UI | [PHASE-07](PHASE-07-enable-cleanup-ui.md) | Not started |
 | 8 | Read-only monitoring services | [PHASE-08](PHASE-08-monitoring-services.md) | Not started |

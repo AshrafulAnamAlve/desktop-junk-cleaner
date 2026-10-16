@@ -48,6 +48,31 @@ public static class PolicyText
         _ => throw new ArgumentOutOfRangeException(nameof(status), status, null),
     };
 
+    public static string Describe(CleanupOutcome outcome) => outcome switch
+    {
+        CleanupOutcome.SkippedPolicy => "Skipped: it isn't a selectable file from this scan, or it no longer passes the safety rules.",
+        CleanupOutcome.SkippedProtected => "Skipped: it's inside a protected location.",
+        CleanupOutcome.SkippedChanged => "Skipped: it changed after the scan (size, date, location or identity).",
+        CleanupOutcome.SkippedMissing => "Skipped: it no longer exists.",
+        CleanupOutcome.SkippedInUse => "Skipped: another program is using it.",
+        CleanupOutcome.SkippedAccessDenied => "Skipped: Windows didn't allow SafeClean to remove it.",
+        CleanupOutcome.SkippedCancelled => "Not attempted: the cleanup was cancelled or stopped before reaching it.",
+        CleanupOutcome.Failed => "Not deleted: Windows reported an error.",
+        CleanupOutcome.WouldDelete => "Would be deleted (preview only — nothing was changed).",
+        CleanupOutcome.Deleted => "Deleted.",
+        _ => throw new ArgumentOutOfRangeException(nameof(outcome), outcome, null),
+    };
+
+    public static string Describe(CleanupRefusal refusal) => refusal switch
+    {
+        CleanupRefusal.InvalidMode => "The cleanup mode wasn't recognised, so nothing was done.",
+        CleanupRefusal.Elevated => "SafeClean is running as administrator, so cleanup is disabled. Start it normally to clean.",
+        CleanupRefusal.SessionExpired => $"The scan is more than {SafetyDefaults.MaxScanSessionAge.TotalMinutes:0} minutes old (or the clock changed). Scan again first.",
+        CleanupRefusal.RootRefused => "The Temp folder no longer passes the safety checks, so nothing was done.",
+        CleanupRefusal.RootChanged => "The Temp folder isn't the same folder that was scanned, so nothing was done. Scan again.",
+        _ => throw new ArgumentOutOfRangeException(nameof(refusal), refusal, null),
+    };
+
     public static string Describe(CandidateCategory category) => category switch
     {
         CandidateCategory.TemporaryFiles => "Temporary files",

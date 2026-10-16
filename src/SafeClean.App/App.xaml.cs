@@ -8,6 +8,7 @@ using SafeClean.Core.Interfaces;
 using SafeClean.Core.Policies;
 using SafeClean.Infrastructure.Environment;
 using SafeClean.Infrastructure.Logging;
+using SafeClean.Infrastructure.Scanning;
 
 namespace SafeClean.App;
 
@@ -78,8 +79,12 @@ public partial class App : Application
         var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.0.0";
         services.AddSingleton(new AppInfo(version, loggerProvider.Directory));
 
-        // Infrastructure
+        // Infrastructure (read-only services only: there is no deletion code to register)
+        services.AddSingleton(TimeProvider.System);
         services.AddSingleton<IElevationProbe, WindowsElevationProbe>();
+        services.AddSingleton<FileInspector>();
+        services.AddSingleton<ITempRootResolver, TempRootResolver>();
+        services.AddSingleton<ITempScanner, TempScanner>();
 
         // Pages and shell
         services.AddSingleton<DashboardViewModel>();

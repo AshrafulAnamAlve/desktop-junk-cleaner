@@ -2,10 +2,11 @@
 
 A safety-first Windows PC cleaner built with C#, WPF and .NET 10. Free, local-only, no cloud services.
 
-> **Current status: Phase 2 done** — the app opens with its dark-themed window, navigation and safety
-> badges, and the safety rules that decide which files may be offered for cleanup are written and
-> tested (281 automated tests). It **cannot scan or delete anything yet**; pages show honest
-> "not connected yet" placeholders.
+> **Current status: Phase 5 done** — the Junk Cleaner screen scans your Temp folder (read-only), shows
+> every file with its status and reason, lets you tick files or categories, and shows a **Dry Run
+> preview** of what a cleanup would do. The safe deletion engine now exists and has been tested **only on
+> synthetic files in test sandboxes**. It is **not connected to any button**, so the app still cannot
+> delete anything. 508 automated tests pass (3 skipped with documented reasons).
 
 ## What it will do (version 1)
 

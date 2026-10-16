@@ -28,4 +28,10 @@ public sealed class SafetyDefaultsTests
     {
         Assert.InRange(SafetyDefaults.MaxScanDepth, 1, 32);
     }
+
+    [Fact]
+    public void ScanResults_ExpireWithinThirtyMinutes()
+    {
+        Assert.InRange(SafetyDefaults.MaxScanSessionAge, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(30));
+    }
 }
