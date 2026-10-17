@@ -15,6 +15,8 @@ accessibility and resizing.
 - [ ] Quick actions: "Scan Temp" (navigates and starts a read-only scan). No cleanup from the dashboard.
 
 ### Performance screen
+- [ ] Refresh memory/CPU every 2 s **only while a monitoring screen is visible**; process list on demand + optional 5 s
+      (moved here from Phase 8, which built `ISystemMonitor`)
 - [ ] Live RAM and CPU with a lightweight sparkline (`Polyline`, last 60 samples, no chart library)
 - [ ] Drives list with usage bars
 - [ ] Process table: name, PID, working set, private bytes; sortable; **read-only** (no end-task)
@@ -29,6 +31,9 @@ accessibility and resizing.
 - [x] Custom dark scrollbars (done early, in Phase 4)
 - [ ] Junk Cleaner: more room for the file list at the default size (resizable splitter or side details pane on wide windows); untrimmed category titles
 - [ ] Junk Cleaner: manual keyboard check (Space ticks rows/categories, arrows, Esc closes preview)
+- [ ] Report: show the drive's free-space change separately ("may include other programs' activity") — from Phase 7
+- [ ] Sandbox mode (Debug): root-level files are labelled "Temp folder" in the list — from Phase 7
+- [ ] Re-check every accessibility name after Phase 7's finding (names on `Border`s are invisible to screen readers)
 - [ ] Dashboard "Junk files" card shows the latest real scan summary
 - [ ] Animations limited to short hover/selection transitions
 - [ ] Consistent spacing scale (4/8/12/16/24/32) and type scale

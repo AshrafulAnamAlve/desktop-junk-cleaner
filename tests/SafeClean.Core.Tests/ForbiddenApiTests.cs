@@ -54,6 +54,12 @@ public sealed class ForbiddenApiTests
         (@"\bEmptyWorkingSet\b", "trimming process memory"),
         (@"\bSetProcessWorkingSetSize", "trimming process memory"),
         (@"\bNtSetSystemInformation\b", "purging the standby list"),
+        (@"\b(Min|Max)WorkingSet\b", "changing a program's memory limits"),
+        (@"\bSetSystemFileCacheSize\b", "changing the file cache"),
+        (@"\bSetPriorityClass\b|\bPriorityClass\s*=(?!=)|\bPriorityBoostEnabled\s*=(?!=)", "changing program priority"),
+        (@"\bProcessorAffinity\s*=(?!=)", "changing program processor affinity"),
+        (@"\b(Nt)?(Suspend|Resume)(Process|Thread)\b", "pausing programs"),
+        (@"\bServiceController\b|\b(Change|Control)Service\w*\b|\bOpenSCManager", "controlling Windows services"),
 
         // System configuration
         (@"\bRegistry(Key)?\b", "registry access"),
@@ -135,6 +141,11 @@ public sealed class ForbiddenApiTests
             "const uint Access = 0x00010000;",
             "File.Move(a, b, overwrite: true);",
             "NtSetInformationFile(h, out io, info, len, 13);",
+            "process.MaxWorkingSet = (IntPtr)1;",
+            "process.PriorityClass = ProcessPriorityClass.Idle;",
+            "using var service = new ServiceController(\"WSearch\");",
+            "NtSuspendProcess(handle);",
+            "SetSystemFileCacheSize(min, max, flags);",
         ];
 
         Assert.All(samples, sample =>

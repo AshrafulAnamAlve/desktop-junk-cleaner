@@ -2,11 +2,12 @@
 
 A safety-first Windows PC cleaner built with C#, WPF and .NET 10. Free, local-only, no cloud services.
 
-> **Current status: Phase 5 done** — the Junk Cleaner screen scans your Temp folder (read-only), shows
-> every file with its status and reason, lets you tick files or categories, and shows a **Dry Run
-> preview** of what a cleanup would do. The safe deletion engine now exists and has been tested **only on
-> synthetic files in test sandboxes**. It is **not connected to any button**, so the app still cannot
-> delete anything. 508 automated tests pass (3 skipped with documented reasons).
+> **Current status: Phase 8 done** — the Junk Cleaner screen scans your Temp folder (read-only), shows
+> every file with its status and reason, lets you tick files or categories, shows a **Dry Run preview**,
+> and — only if you switch **Real cleanup mode** on and confirm — deletes the selected files through the
+> safety-tested engine. Read-only RAM, CPU, disk and program-memory monitoring is built and tested; the
+> Dashboard and Performance screens start showing it in Phase 9. 608 automated tests pass (7 skipped with
+> documented reasons).
 
 ## What it will do (version 1)
 
@@ -33,6 +34,29 @@ dotnet run --project src/SafeClean.App
 ```
 
 The app runs with normal user rights (never as administrator) and always starts in **Dry Run** mode.
+
+## Cleaning (Real mode)
+
+1. **Junk Cleaner → Scan Temp folder.** Reading only; nothing changes.
+2. Tick files or categories (a category tick selects only its *safe* files). Use **Preview cleanup (Dry Run)**
+   to see what would happen.
+3. Switch **Real cleanup mode** on (bottom bar turns red). It is off every time SafeClean starts, can't be
+   switched on while SafeClean runs as administrator, and switches itself off after each cleanup.
+4. Press **Delete N files…** and read the dialog. **Cancel is the default** — Enter or Esc cancels.
+   Only the red button deletes.
+5. Each file is checked again right before deletion; files that changed, are in use, or no longer pass
+   the rules are skipped and kept. The report shows deleted, skipped and failed files, and space freed
+   from deleted files only. Deleted files do **not** go to the Recycle Bin.
+
+**Trying it safely first (Debug builds only):** create a folder of synthetic files and point SafeClean at it.
+
+```powershell
+dotnet test --project tests/SafeClean.Infrastructure.Tests/SafeClean.Infrastructure.Tests.csproj -c Debug --output Detailed --explicit only --filter-class "SafeClean.Infrastructure.Tests.Manual.ManualSandboxSetup"
+dotnet run --project src/SafeClean.App -- --sandbox-root "<the folder printed by the command above>"
+```
+
+An orange **SANDBOX MODE** banner then shows the folder being used. SafeClean refuses to start if the folder
+has no `.safeclean-sandbox` marker file, and this option doesn't exist in Release builds.
 
 ## Documentation
 

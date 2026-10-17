@@ -21,3 +21,6 @@ coverage*/
 # OS
 Thumbs.db
 Desktop.ini
+
+# Debug-only manual test sandboxes (synthetic files)
+.sandbox/

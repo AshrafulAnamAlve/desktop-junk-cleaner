@@ -8,6 +8,7 @@ namespace SafeClean.App.ViewModels;
 /// <summary>The main window: sidebar navigation, current page and global safety badges.</summary>
 public sealed class MainViewModel : ObservableObject
 {
+    private readonly JunkCleanerViewModel _junkCleaner;
     private NavigationItem _selectedItem;
 
     public MainViewModel(
@@ -16,8 +17,20 @@ public sealed class MainViewModel : ObservableObject
         PerformanceViewModel performance,
         HistoryViewModel history,
         SettingsViewModel settings,
-        IElevationProbe elevation)
+        IElevationProbe elevation,
+        AppInfo appInfo)
     {
+        _junkCleaner = junkCleaner;
+        _junkCleaner.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(JunkCleanerViewModel.IsRealMode))
+            {
+                OnPropertyChanged(nameof(Mode));
+                OnPropertyChanged(nameof(IsRealMode));
+            }
+        };
+        SandboxRoot = appInfo.SandboxRoot;
+
         NavigationItems =
         [
             new NavigationItem("Dashboard", Glyphs.Dashboard, dashboard),
@@ -53,8 +66,17 @@ public sealed class MainViewModel : ObservableObject
 
     public PageViewModel CurrentPage => _selectedItem.Page;
 
-    /// <summary>Always Dry Run at startup (see docs/SECURITY.md §1).</summary>
-    public CleanupMode Mode { get; } = SafetyDefaults.StartupMode;
+    /// <summary>Dry Run at every start (docs/SECURITY.md §1); Real only while the Junk Cleaner's switch is on.</summary>
+    public CleanupMode Mode => _junkCleaner.IsRealMode ? CleanupMode.Real : SafetyDefaults.StartupMode;
+
+    public bool IsRealMode => Mode == CleanupMode.Real;
 
     public bool IsElevated { get; }
+
+    /// <summary>Debug builds only: the test folder used instead of the real Temp folder.</summary>
+    public string? SandboxRoot { get; }
+
+    public bool IsSandbox => SandboxRoot is not null;
+
+    public string SandboxBannerText => $"SANDBOX MODE (Debug build) — working on {SandboxRoot}, not your Temp folder.";
 }

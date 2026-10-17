@@ -113,4 +113,32 @@ internal static unsafe partial class NativeMethods
     [LibraryImport("shell32.dll")]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     internal static partial int SHGetKnownFolderPath(in Guid folderId, uint flags, IntPtr token, out IntPtr path);
+
+    // ---- Monitoring (read-only queries) ----
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct MEMORYSTATUSEX
+    {
+        public uint Length; // must be set to the size of this structure before the call
+        public uint MemoryLoad;
+        public ulong TotalPhys;
+        public ulong AvailPhys;
+        public ulong TotalPageFile;
+        public ulong AvailPageFile;
+        public ulong TotalVirtual;
+        public ulong AvailVirtual;
+        public ulong AvailExtendedVirtual;
+    }
+
+    /// <summary>Reads physical and virtual memory figures. Changes nothing.</summary>
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool GlobalMemoryStatusEx(ref MEMORYSTATUSEX buffer);
+
+    /// <summary>Reads cumulative idle, kernel and user processor times (FILETIME units). Changes nothing.</summary>
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool GetSystemTimes(out long idleTime, out long kernelTime, out long userTime);
 }

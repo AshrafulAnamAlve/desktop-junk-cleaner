@@ -168,6 +168,8 @@ public sealed class CleanupPolicyTests
     [InlineData("last write time")]
     [InlineData("creation time")]
     [InlineData("now read-only")]
+    [InlineData("now encrypted")]
+    [InlineData("now sparse")]
     [InlineData("archive bit cleared")]
     [InlineData("final path outside root")]
     [InlineData("final path elsewhere in root")]
@@ -188,6 +190,8 @@ public sealed class CleanupPolicyTests
             "last write time" => recorded with { LastWriteTimeUtc = recorded.LastWriteTimeUtc.AddSeconds(1) },
             "creation time" => recorded with { CreationTimeUtc = recorded.CreationTimeUtc.AddSeconds(-1) },
             "now read-only" => recorded with { Attributes = recorded.Attributes | FileAttributes.ReadOnly },
+            "now encrypted" => recorded with { Attributes = recorded.Attributes | FileAttributes.Encrypted },
+            "now sparse" => recorded with { Attributes = recorded.Attributes | FileAttributes.SparseFile },
             "archive bit cleared" => recorded with { Attributes = FileAttributes.Normal },
             "final path outside root" => recorded with { FinalPath = Profile + @"\Documents\a.tmp" },
             "final path elsewhere in root" => recorded with { FinalPath = TempRoot + @"\other.tmp" },

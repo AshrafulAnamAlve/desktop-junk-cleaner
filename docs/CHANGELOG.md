@@ -2,6 +2,63 @@
 
 ## [Unreleased]
 
+### Phase 8 — read-only monitoring services ✅ Done (2026-10-17)
+Verified: build 0 warnings; 608 passed, 0 failed, 7 skipped; readings match Windows' own figures (RAM, drives,
+top programs; CPU within 2–3 points when sampled side by side). Nothing is changed on the system.
+
+Created:
+- `src/SafeClean.Core/`: `Interfaces/ISystemMonitor`, `Models/MonitoringSnapshots`, `Policies/MonitoringMath`
+- `src/SafeClean.Infrastructure/Monitoring/SystemMonitor.cs`
+- `tests/SafeClean.Core.Tests/Policies/MonitoringMathTests.cs`
+- `tests/SafeClean.Infrastructure.Tests/Monitoring/`: `SystemMonitorTests`, `RealReadingsForComparison` (Explicit)
+
+Changed:
+- `NativeMethods`: `GlobalMemoryStatusEx`, `GetSystemTimes` (read-only)
+- `App.xaml.cs`: registers `ISystemMonitor`
+- `ForbiddenApiTests`: 6 new patterns (memory limits, file cache, priority, affinity, pausing programs, services)
+- `docs/SECURITY.md` §8: implemented and enforced
+
+### Phase 7 — cleanup enabled in the UI ✅ Done (2026-10-17) — real deletion enabled behind Real mode + confirmation
+Verified: build 0 warnings (Debug and Release); 576 passed, 0 failed, 6 skipped; Release binaries contain no
+sandbox code; end-to-end run in Debug sandbox mode deleted exactly the 3 selected synthetic files after
+4 safety checks, with Enter cancelling the dialog. The real Temp folder was not cleaned.
+
+Created:
+- `src/SafeClean.App/`: `Services/ICleanupConfirmation`, `Services/DialogCleanupConfirmation`,
+  `Views/ConfirmCleanupWindow.xaml(.cs)`, `ViewModels/CleanupConfirmationViewModel`, `ViewModels/CleanupReportViewModel`,
+  `Converters/InverseBooleanToVisibilityConverter`
+- `src/SafeClean.Infrastructure/Scanning/DebugSandboxRootResolver.cs` (Debug builds only)
+- `tests/SafeClean.App.Tests/`: `TestDoubles`, `JunkCleanerCleanupTests`
+- `tests/SafeClean.Infrastructure.Tests/`: `Scanning/DebugSandboxRootResolverTests`, `Manual/ManualSandboxSetup` (Explicit)
+
+Changed:
+- `JunkCleanerViewModel` / `JunkCleanerView`: Real mode switch, red delete button, confirmation, cleaning
+  progress with Cancel, result report; results closed and Real mode off after each cleanup
+- `MainWindow` / `MainViewModel`: DRY RUN / REAL MODE sidebar badge, SANDBOX banner; accessibility names moved
+  from `Border`s (invisible to screen readers) onto text
+- `App.xaml.cs`: registers `CleanupService` and the dialog; `--sandbox-root` in Debug builds only; `AppInfo.SandboxRoot`
+- `ScanState`: `Cleaning`, `CleanedUp`; `Theme.xaml` / `Controls.xaml`: danger colours, `Button.Danger`, `ToggleSwitch`
+- `ArchitectureTests`: "no cleanup until Phase 7" replaced by "only through `ICleanupService`"; sandbox code Debug-only
+- `.gitignore`: `.sandbox/`
+- `docs/SECURITY.md` §12, `README.md` "Cleaning (Real mode)"
+
+### Phase 6 — cleanup test gate ✅ Done (2026-10-17) — gate PASSED
+Verified: build 0 warnings; 553 passed, 0 failed, 5 skipped (written reasons); all 24 gate items pass, with
+3 sub-cases skipped for documented reasons (file symlink, 8.3 alias, EFS); mutation check caught 6/6 planted
+bugs, each by the intended gate test. Synthetic sandbox
+files only; real deletion still not connected to the UI.
+
+Created:
+- `tests/SafeClean.Infrastructure.Tests/Cleanup/CleanupGateTests.cs` (gate tests `Gate02`…`Gate23`, 45 cases)
+- `tests/SafeClean.Infrastructure.Tests/Sandbox/SpecialFiles.cs` (sparse files, 8.3 short names, wait for antivirus)
+
+Changed:
+- `CleanupService`: a throwing progress callback or logger now stops the run but still returns the full
+  report (previously the record of already-deleted files could be lost) — found in the gate self-review
+- `TestSandbox.Snapshot(folder)`; `CleanupPolicyTests`: "now encrypted" and "now sparse" cases
+- `docs/SECURITY.md`: gate passed; three new known limitations
+- `docs/phases/PHASE-07` and `PHASE-10`: follow-ups from the gate review
+
 ### Phase 5 — handle-based cleanup engine (not connected to the UI) ✅ Done (2026-10-16)
 Verified: build 0 warnings; 508 passed, 3 skipped; every deletion in tests was a synthetic file inside a
 test sandbox; mutation check caught 11/12 planted bugs (the 12th removes a check that a second layer

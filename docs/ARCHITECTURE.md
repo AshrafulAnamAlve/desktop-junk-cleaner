@@ -14,8 +14,9 @@ Desktop-Clean-App/              ← workspace root (the solution lives here, not
 │  │  ├─ Mvvm/                  ← tiny hand-written MVVM helpers (ObservableObject, RelayCommand, AsyncRelayCommand)
 │  │  ├─ Presentation/          ← display formatting (sizes, dates, revealing disguised names)
 │  │  ├─ Converters/            ← small XAML value converters
+│  │  ├─ Services/              ← UI-side services (the cleanup confirmation dialog)
 │  │  ├─ ViewModels/
-│  │  ├─ Views/
+│  │  ├─ Views/                 ← pages, plus ConfirmCleanupWindow
 │  │  ├─ Resources/             ← theme colours and control styles
 │  │  ├─ Interop/               ← UI-only Windows calls (dark title bar)
 │  │  ├─ App.xaml(.cs)          ← composition root: dependency injection, logging, error handlers
@@ -23,13 +24,14 @@ Desktop-Clean-App/              ← workspace root (the solution lives here, not
 │  ├─ SafeClean.Core/           ← pure logic: models, interfaces, safety policies. No file access.
 │  │  ├─ Models/                ← FileFacts, FileIdentity, ApprovedRoot, decisions, reason codes
 │  │  ├─ Policies/              ← PathValidator, WindowsPath, ProtectedLocations, RootPolicy, CandidatePolicy,
-│  │  │                            DryRunPlanner, CleanupPolicy, PolicyText
-│  │  └─ Interfaces/            ← ITempRootResolver, ITempScanner, ICleanupService, IElevationProbe
+│  │  │                            DryRunPlanner, CleanupPolicy, MonitoringMath, PolicyText
+│  │  └─ Interfaces/            ← ITempRootResolver, ITempScanner, ICleanupService, ISystemMonitor, IElevationProbe
 │  └─ SafeClean.Infrastructure/ ← talks to Windows: scanning, cleanup, monitoring, logging
 │     ├─ Native/                ← the only place with direct Windows calls and "unsafe" code
 │     ├─ Scanning/              ← FileInspector, RootFactsReader, KnownProtectedLocations, TempRootResolver, TempScanner
 │     ├─ Cleanup/               ← HandleBasedFileDeleter (the ONLY code that can delete), CleanupService, AttemptResult
-│     │                            (Phase 5; not reachable from the App until Phase 7)
+│     │                            (Phase 5; the App reaches it only through ICleanupService since Phase 7)
+│     ├─ Monitoring/            ← SystemMonitor: read-only RAM, CPU, drive and process figures (Phase 8)
 │     ├─ Logging/
 │     └─ Environment/           ← administrator detection
 ├─ tests/
@@ -91,7 +93,8 @@ listing → each entry inspected by `FileInspector` (read-attributes handle) →
 → `ScanSession` with `ScanSummary` back to the UI. The user ticks rows; the view model keeps candidate IDs;
 **Dry Run preview** = `DryRunPlanner.Create(session, ids)` in Core (unknown or non-selectable IDs ignored).
 
-**Cleanup (implemented in Phase 5, connected to the UI in Phase 7):** the screen will send the scan
+**Cleanup (implemented in Phase 5, connected to the UI in Phase 7):** Real mode on + selection + red button
+→ `ICleanupConfirmation` dialog (Cancel is default) → the Junk Cleaner view model sends the scan
 session and the IDs of the selected entries → `ICleanupService` (`CleanupService`) refuses the whole
 request if elevated, the scan is older than 30 minutes, or `CleanupPolicy.CheckRoot` finds the re-resolved
 Temp folder refused or different → for each ID, one at a time: `CleanupPolicy.CheckRecorded` (D1 + D2) →

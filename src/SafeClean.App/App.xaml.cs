@@ -1,13 +1,20 @@
+#if DEBUG
+using System.IO;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+#endif
 using System.Reflection;
 using System.Windows;
 using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using SafeClean.App.Services;
 using SafeClean.App.ViewModels;
 using SafeClean.Core.Interfaces;
 using SafeClean.Core.Policies;
+using SafeClean.Infrastructure.Cleanup;
 using SafeClean.Infrastructure.Environment;
 using SafeClean.Infrastructure.Logging;
+using SafeClean.Infrastructure.Monitoring;
 using SafeClean.Infrastructure.Scanning;
 
 namespace SafeClean.App;
@@ -30,16 +37,21 @@ public partial class App : Application
         try
         {
             _loggerProvider = new FileLoggerProvider(FileLoggerProvider.DefaultDirectory);
-            _services = ConfigureServices(_loggerProvider);
+            string? sandboxRoot = null;
+#if DEBUG
+            sandboxRoot = ReadSandboxArgument(e.Args);
+#endif
+            _services = ConfigureServices(_loggerProvider, sandboxRoot);
             _logger = _services.GetRequiredService<ILogger<App>>();
 
             var info = _services.GetRequiredService<AppInfo>();
             var elevation = _services.GetRequiredService<IElevationProbe>();
             _logger.LogInformation(
-                "SafeClean {Version} starting. Mode: {Mode}. Elevated: {Elevated}.",
+                "SafeClean {Version} starting. Mode: {Mode}. Elevated: {Elevated}. Sandbox: {Sandbox}.",
                 info.Version,
                 SafetyDefaults.StartupMode,
-                elevation.IsElevated);
+                elevation.IsElevated,
+                info.IsSandbox);
 
             var window = _services.GetRequiredService<MainWindow>();
             MainWindow = window;
@@ -65,7 +77,7 @@ public partial class App : Application
         base.OnExit(e);
     }
 
-    private static ServiceProvider ConfigureServices(FileLoggerProvider loggerProvider)
+    private static ServiceProvider ConfigureServices(FileLoggerProvider loggerProvider, string? sandboxRoot)
     {
         var services = new ServiceCollection();
 
@@ -77,14 +89,29 @@ public partial class App : Application
         });
 
         var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.0.0";
-        services.AddSingleton(new AppInfo(version, loggerProvider.Directory));
+        services.AddSingleton(new AppInfo(version, loggerProvider.Directory, sandboxRoot));
 
-        // Infrastructure (read-only services only: there is no deletion code to register)
+        // Infrastructure
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<IElevationProbe, WindowsElevationProbe>();
         services.AddSingleton<FileInspector>();
         services.AddSingleton<ITempRootResolver, TempRootResolver>();
         services.AddSingleton<ITempScanner, TempScanner>();
+        services.AddSingleton<ISystemMonitor, SystemMonitor>(); // read-only monitoring (Phase 8)
+
+        // Cleanup: the only path to the deletion engine. The service refuses unsafe requests and re-checks every file.
+        services.AddSingleton<ICleanupService, CleanupService>();
+        services.AddSingleton<ICleanupConfirmation, DialogCleanupConfirmation>();
+
+#if DEBUG
+        if (sandboxRoot is not null)
+        {
+            services.Replace(ServiceDescriptor.Singleton<ITempRootResolver>(provider => new DebugSandboxRootResolver(
+                sandboxRoot,
+                provider.GetRequiredService<FileInspector>(),
+                provider.GetRequiredService<ILogger<DebugSandboxRootResolver>>())));
+        }
+#endif
 
         // Pages and shell
         services.AddSingleton<DashboardViewModel>();
@@ -101,6 +128,37 @@ public partial class App : Application
             ValidateScopes = true,
         });
     }
+
+#if DEBUG
+    /// <summary>
+    /// DEBUG BUILDS ONLY: <c>--sandbox-root &lt;folder&gt;</c> points SafeClean at a test folder instead of the
+    /// real Temp folder (docs/SECURITY.md §12). A folder without the marker file stops SafeClean from
+    /// starting at all, so it can never fall back to the real Temp folder by mistake.
+    /// </summary>
+    private static string? ReadSandboxArgument(string[] args)
+    {
+        var index = Array.IndexOf(args, "--sandbox-root");
+        if (index < 0)
+        {
+            return null;
+        }
+
+        if (index + 1 >= args.Length)
+        {
+            throw new InvalidOperationException("--sandbox-root needs a folder path. SafeClean will not start.");
+        }
+
+        var root = Path.GetFullPath(args[index + 1]);
+        if (!File.Exists(Path.Combine(root, DebugSandboxRootResolver.MarkerFileName)))
+        {
+            throw new InvalidOperationException(
+                $"The sandbox folder has no '{DebugSandboxRootResolver.MarkerFileName}' marker file. " +
+                "SafeClean will not start (it never falls back to your real Temp folder).");
+        }
+
+        return root;
+    }
+#endif
 
     private void RegisterGlobalExceptionHandlers()
     {

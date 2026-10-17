@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using SafeClean.App.Mvvm;
 using SafeClean.App.Presentation;
+using SafeClean.App.Services;
 using SafeClean.Core.Interfaces;
 using SafeClean.Core.Models;
 using SafeClean.Core.Policies;
@@ -8,12 +9,16 @@ using SafeClean.Core.Policies;
 namespace SafeClean.App.ViewModels;
 
 /// <summary>
-/// The Junk Cleaner page: runs a read-only scan, shows the results, lets the user tick files, and shows a
-/// Dry Run preview. This page contains no deletion code.
+/// The Junk Cleaner page: runs a read-only scan, shows the results, lets the user tick files, shows a
+/// Dry Run preview, and — only after several deliberate steps — asks the cleanup service to delete.
 /// <list type="bullet">
 /// <item>Nothing is selected after a scan; "select all safe files" never includes "needs review" files.</item>
 /// <item>Skipped entries can't be selected by any means.</item>
 /// <item>The selection is a set of candidate IDs from the current scan; a new scan clears it.</item>
+/// <item>Deleting needs: Real mode switched on (off at every start, not while elevated), a selection, a scan
+/// younger than 30 minutes, and a confirmation dialog whose default button is Cancel.</item>
+/// <item>This page never decides what may be deleted: the cleanup service re-checks every file.</item>
+/// <item>After a cleanup the scan is closed and Real mode switches off; a new scan is needed to clean again.</item>
 /// </list>
 /// </summary>
 public sealed class JunkCleanerViewModel : PageViewModel
@@ -22,9 +27,16 @@ public sealed class JunkCleanerViewModel : PageViewModel
         [CandidateCategory.TemporaryFiles, CandidateCategory.LogFiles, CandidateCategory.InstallerLeftovers, CandidateCategory.Other];
 
     private readonly ITempScanner _scanner;
+    private readonly ICleanupService _cleanup;
+    private readonly ICleanupConfirmation _confirmation;
+    private readonly TimeProvider _time;
     private readonly ILogger<JunkCleanerViewModel> _logger;
     private CancellationTokenSource? _scanCancellation;
+    private CancellationTokenSource? _cleanupCancellation;
     private List<CandidateItemViewModel> _allItems = [];
+    private bool _isRealMode;
+    private string _cleanupProgressText = string.Empty;
+    private CleanupReportViewModel? _report;
 
     private ScanState _state;
     private string _statusText = "Not scanned yet.";
@@ -40,17 +52,31 @@ public sealed class JunkCleanerViewModel : PageViewModel
     private long _selectedBytes;
     private DryRunPreview? _preview;
 
-    public JunkCleanerViewModel(ITempScanner scanner, ILogger<JunkCleanerViewModel> logger)
+    public JunkCleanerViewModel(
+        ITempScanner scanner,
+        ICleanupService cleanup,
+        IElevationProbe elevation,
+        ICleanupConfirmation confirmation,
+        TimeProvider time,
+        AppInfo appInfo,
+        ILogger<JunkCleanerViewModel> logger)
     {
         _scanner = scanner;
+        _cleanup = cleanup;
+        _confirmation = confirmation;
+        _time = time;
         _logger = logger;
+        IsElevated = elevation.IsElevated;
+        SandboxRoot = appInfo.SandboxRoot;
 
-        ScanCommand = new AsyncRelayCommand(ScanAsync, () => !IsScanning);
+        ScanCommand = new AsyncRelayCommand(ScanAsync, () => !IsScanning && !IsCleaning);
         CancelScanCommand = new RelayCommand(() => _scanCancellation?.Cancel(), () => IsScanning);
         SelectAllEligibleCommand = new RelayCommand(SelectAllEligible, () => HasResults);
         ClearSelectionCommand = new RelayCommand(ClearSelection, () => SelectedCount > 0);
         PreviewCommand = new RelayCommand(ShowPreview, () => SelectedCount > 0);
         DismissPreviewCommand = new RelayCommand(() => Preview = null, () => Preview is not null);
+        DeleteCommand = new AsyncRelayCommand(DeleteSelectedAsync, () => CanDelete);
+        CancelCleanupCommand = new RelayCommand(() => _cleanupCancellation?.Cancel(), () => IsCleaning);
     }
 
     public override string Title => "Junk Cleaner";
@@ -72,6 +98,88 @@ public sealed class JunkCleanerViewModel : PageViewModel
 
     public RelayCommand DismissPreviewCommand { get; }
 
+    /// <summary>Opens the confirmation dialog, then (only if confirmed) runs a real cleanup of the selection.</summary>
+    public AsyncRelayCommand DeleteCommand { get; }
+
+    /// <summary>Stops a running cleanup before the next file (never in the middle of one).</summary>
+    public RelayCommand CancelCleanupCommand { get; }
+
+    // ---- Real mode --------------------------------------------------------------------------------
+
+    public bool IsElevated { get; }
+
+    /// <summary>Debug builds only: the test folder used instead of the real Temp folder.</summary>
+    public string? SandboxRoot { get; }
+
+    public bool IsSandbox => SandboxRoot is not null;
+
+    /// <summary>Real mode can't be switched on while SafeClean runs as administrator (rule R8).</summary>
+    public bool CanUseRealMode => !IsElevated && !IsCleaning;
+
+    public string RealModeHint => IsElevated
+        ? "Cleanup is disabled while SafeClean runs as administrator. Start it normally to clean."
+        : IsRealMode
+            ? "On: after you confirm, the selected files are permanently deleted — not moved to the Recycle Bin."
+            : "Off: preview only. Switch on to delete the selected files after confirming.";
+
+    /// <summary>
+    /// Real cleanup mode. Off at every start (never saved), refuses to switch on while elevated or cleaning,
+    /// and switches itself off after every cleanup.
+    /// </summary>
+    public bool IsRealMode
+    {
+        get => _isRealMode;
+        set
+        {
+            var allowed = value && CanUseRealMode;
+            if (!SetProperty(ref _isRealMode, allowed))
+            {
+                // A refused request still tells the toggle to show the real (unchanged) state.
+                OnPropertyChanged();
+                return;
+            }
+
+            OnPropertyChanged(nameof(ModeBadgeText));
+            OnPropertyChanged(nameof(RealModeHint));
+            Preview = null;
+            NotifyCommands();
+        }
+    }
+
+    public string ModeBadgeText => IsRealMode ? "Real mode · deletes files" : "Read-only · Dry Run";
+
+    public bool CanDelete =>
+        IsRealMode && !IsElevated && State == ScanState.Completed && Session is not null && SelectedCount > 0;
+
+    public string DeleteButtonText => SelectedCount == 0
+        ? "Delete selected files…"
+        : $"Delete {DisplayText.Count(SelectedCount, "file", "files")}…";
+
+    // ---- Cleanup progress and report --------------------------------------------------------------
+
+    public bool IsCleaning => State == ScanState.Cleaning;
+
+    public string CleanupProgressText
+    {
+        get => _cleanupProgressText;
+        private set => SetProperty(ref _cleanupProgressText, value);
+    }
+
+    /// <summary>The result of the last cleanup, shown until the next scan.</summary>
+    public CleanupReportViewModel? Report
+    {
+        get => _report;
+        private set
+        {
+            if (SetProperty(ref _report, value))
+            {
+                OnPropertyChanged(nameof(HasReport));
+            }
+        }
+    }
+
+    public bool HasReport => State == ScanState.CleanedUp && Report is not null;
+
     // ---- Scan state -------------------------------------------------------------------------------
 
     public ScanState State
@@ -89,6 +197,9 @@ public sealed class JunkCleanerViewModel : PageViewModel
                 OnPropertyChanged(nameof(IsRefused));
                 OnPropertyChanged(nameof(MessageTitle));
                 OnPropertyChanged(nameof(MessageBody));
+                OnPropertyChanged(nameof(IsCleaning));
+                OnPropertyChanged(nameof(HasReport));
+                OnPropertyChanged(nameof(CanUseRealMode));
                 NotifyCommands();
             }
         }
@@ -296,12 +407,7 @@ public sealed class JunkCleanerViewModel : PageViewModel
         : $"Dry Run: nothing was deleted. A real cleanup would try to delete {DisplayText.Count(Preview.FileCount, "file", "files")}, about {DisplayText.FormatBytes(Preview.EstimatedBytes)} (estimate).";
 
     /// <summary>"Installer leftovers: 27 files" — one line per category in the preview.</summary>
-    public IReadOnlyList<string> PreviewBreakdown => Preview is null
-        ? []
-        : CategoryOrder
-            .Where(c => Preview.FilesByCategory.ContainsKey(c))
-            .Select(c => $"{PolicyText.Describe(c)}: {DisplayText.Count(Preview.FilesByCategory[c], "file", "files")}")
-            .ToList();
+    public IReadOnlyList<string> PreviewBreakdown => Preview is null ? [] : CleanupConfirmationViewModel.DescribeCategories(Preview);
 
     public string PreviewDetails
     {
@@ -389,7 +495,68 @@ public sealed class JunkCleanerViewModel : PageViewModel
         FocusedItem = null;
         RefusalReasons = [];
         Preview = null;
+        Report = null;
         RecalculateSelection();
+    }
+
+    private async Task DeleteSelectedAsync()
+    {
+        // Checked again here, not only by the button: nothing reaches the service unless every condition holds.
+        if (!CanDelete || Session is not { } session)
+        {
+            return;
+        }
+
+        if (_time.GetUtcNow() - session.StartedAt > SafetyDefaults.MaxScanSessionAge)
+        {
+            StatusText = $"These results are more than {SafetyDefaults.MaxScanSessionAge.TotalMinutes:0} minutes old. Scan again before cleaning. Nothing was deleted.";
+            return;
+        }
+
+        var ids = SelectedIds;
+        var plan = DryRunPlanner.Create(session, ids);
+        if (plan.FileCount == 0 || !_confirmation.Confirm(new CleanupConfirmationViewModel(plan, SandboxRoot)))
+        {
+            StatusText = "Cleanup cancelled. Nothing was deleted.";
+            return;
+        }
+
+        Preview = null;
+        CleanupProgressText = $"Checking and deleting {DisplayText.Count(plan.FileCount, "file", "files")}…";
+        StatusText = "Cleaning…";
+        State = ScanState.Cleaning;
+
+        using var cancellation = new CancellationTokenSource();
+        _cleanupCancellation = cancellation;
+        var progress = new Progress<CleanupProgress>(p =>
+        {
+            if (IsCleaning)
+            {
+                CleanupProgressText = $"Checked {p.Processed:N0} of {p.Total:N0} files…";
+            }
+        });
+
+        CleanupReportViewModel report;
+        try
+        {
+            report = new CleanupReportViewModel(await _cleanup.CleanAsync(session, ids, CleanupMode.Real, progress, cancellation.Token));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "The cleanup failed.");
+            report = CleanupReportViewModel.ForUnexpectedError();
+        }
+        finally
+        {
+            _cleanupCancellation = null;
+        }
+
+        // The scan results no longer describe the disk: close them. Cleaning again needs a new scan and Real mode again.
+        ClearResults();
+        Report = report;
+        StatusText = report.Headline + ".";
+        State = ScanState.CleanedUp;
+        IsRealMode = false;
     }
 
     private void LoadSession(ScanSession session)
@@ -523,6 +690,7 @@ public sealed class JunkCleanerViewModel : PageViewModel
     {
         Preview = null; // a preview always describes the current selection
         OnPropertyChanged(nameof(SelectionText));
+        OnPropertyChanged(nameof(DeleteButtonText));
         NotifyCommands();
     }
 
@@ -542,5 +710,8 @@ public sealed class JunkCleanerViewModel : PageViewModel
         ClearSelectionCommand.NotifyCanExecuteChanged();
         PreviewCommand.NotifyCanExecuteChanged();
         DismissPreviewCommand.NotifyCanExecuteChanged();
+        DeleteCommand.NotifyCanExecuteChanged();
+        CancelCleanupCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(CanDelete));
     }
 }

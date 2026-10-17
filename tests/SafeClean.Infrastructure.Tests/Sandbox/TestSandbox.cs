@@ -73,6 +73,14 @@ internal sealed class TestSandbox : IDisposable
         return snapshot;
     }
 
+    /// <summary>Like <see cref="Snapshot()"/>, for one folder inside the sandbox only (keys stay relative to the sandbox).</summary>
+    public SortedDictionary<string, string> Snapshot(string relativeFolder)
+    {
+        var snapshot = new SortedDictionary<string, string>(StringComparer.Ordinal);
+        SnapshotFolder(PathFor(relativeFolder), snapshot);
+        return snapshot;
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(Root))

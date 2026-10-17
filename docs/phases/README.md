@@ -11,9 +11,9 @@ One file per phase. Each file says **what** the phase builds, **why**, **which f
 | 3 | Read-only Temp scanner | [PHASE-03](PHASE-03-read-only-scanner.md) | ✅ Done (2026-10-16) |
 | 4 | Dry Run preview screen | [PHASE-04](PHASE-04-dry-run-preview.md) | ✅ Done (2026-10-16) |
 | 5 | Cleanup engine (not connected to UI) | [PHASE-05](PHASE-05-cleanup-engine.md) | ✅ Done (2026-10-16) |
-| 6 | Cleanup test gate | [PHASE-06](PHASE-06-cleanup-test-gate.md) | Not started |
-| 7 | Enable cleanup in the UI | [PHASE-07](PHASE-07-enable-cleanup-ui.md) | Not started |
-| 8 | Read-only monitoring services | [PHASE-08](PHASE-08-monitoring-services.md) | Not started |
+| 6 | Cleanup test gate | [PHASE-06](PHASE-06-cleanup-test-gate.md) | ✅ Done (2026-10-17) — gate passed |
+| 7 | Enable cleanup in the UI | [PHASE-07](PHASE-07-enable-cleanup-ui.md) | ✅ Done (2026-10-17) |
+| 8 | Read-only monitoring services | [PHASE-08](PHASE-08-monitoring-services.md) | ✅ Done (2026-10-17) |
 | 9 | Dashboard, Performance screen, UI polish | [PHASE-09](PHASE-09-dashboard-and-polish.md) | Not started |
 | 10 | Settings, exclusions, logging, history | [PHASE-10](PHASE-10-settings-history.md) | Not started |
 | 11 | Security review and verification | [PHASE-11](PHASE-11-security-review.md) | Not started |

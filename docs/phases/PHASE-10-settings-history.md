@@ -29,13 +29,17 @@ protected location, lower the 7-day age limit, or make Real mode start enabled.
 - [ ] Must resolve to a location inside the approved root; anything else rejected with explanation
 - [ ] Simple patterns only (`*.log`, `SomeFolder\`); no regular expressions
 - [ ] Applied in `CandidatePolicy` (scan) **and** revalidated in cleanup (D2)
+- [ ] `CleanupService` builds its `CandidatePolicyContext` with the **same exclusions and minimum age** as the scan
+      (today both use the defaults). Test: a file excluded after the scan is skipped at cleanup — *noted by the Phase 6 review*
 
 ### Logging controls
 - [ ] Show log folder path; "Open log folder" via Explorer (`explorer.exe` with the folder as argument only;
       allow-listed single call in `ForbiddenApiTests`)
 - [ ] Log retention: on startup remove SafeClean's **own** log files older than N days — only files directly
       in the log folder whose names exactly match `safeclean-YYYYMMDD.log`, via the same handle-based
-      deleter with the log folder as its approved root; no recursion
+      deleter with the log folder as its approved root; no recursion. *Note (Phase 6):* the engine is
+      currently reachable only through `CleanupService` (architecture test) and roots only through
+      `RootPolicy`; this task must design a second, equally strict entry point and update those tests deliberately
 
 ### Cleanup history
 - [ ] Append-only `%LOCALAPPDATA%\SafeClean\history.jsonl`: date, mode, counts (deleted/skipped/failed),

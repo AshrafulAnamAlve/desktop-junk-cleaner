@@ -47,18 +47,73 @@ public sealed class ArchitectureTests
     }
 
     [Fact]
-    public void App_HasNoAccessToCleanupCode_UntilPhase7()
+    public void App_ReachesCleanupOnlyThroughTheServiceInterface()
     {
-        // Real deletion may only be connected to the UI in Phase 7, after the Phase 6 test gate.
-        // Phase 7 must update this test deliberately.
-        var cleanup = new Regex(@"\bICleanupService\b|\bCleanupService\b|\bHandleBasedFileDeleter\b|Infrastructure\.Cleanup\b");
+        // Phase 7 (after the Phase 6 gate) connected cleanup to the UI — deliberately, and only like this:
+        // view models use ICleanupService (Core); only the composition root names the concrete CleanupService;
+        // nothing in the App names the deletion engine.
+        var compositionRoot = Path.Combine("src", "SafeClean.App", "App.xaml.cs");
+        var concrete = new Regex(@"\bCleanupService\b|Infrastructure\.Cleanup\b");
+        var engine = new Regex(@"\bHandleBasedFileDeleter\b|\bAttemptResult\b");
+
         var offenders = RepositoryFiles.SourceFiles("SafeClean.App")
-            .SelectMany(f => File.ReadLines(f).Select((line, i) => (File: f, Line: i + 1, Text: line)))
-            .Where(x => cleanup.IsMatch(x.Text))
-            .Select(x => $"{RepositoryFiles.Relative(x.File)}:{x.Line}: {x.Text.Trim()}")
+            .SelectMany(f => File.ReadLines(f).Select((line, i) => (File: RepositoryFiles.Relative(f), Line: i + 1, Text: line)))
+            .Where(x => engine.IsMatch(x.Text) || (concrete.IsMatch(x.Text) && !string.Equals(x.File, compositionRoot, StringComparison.OrdinalIgnoreCase)))
+            .Select(x => $"{x.File}:{x.Line}: {x.Text.Trim()}")
             .ToList();
 
-        Assert.True(offenders.Count == 0, "The UI must not reference cleanup code yet:\n" + string.Join('\n', offenders));
+        Assert.True(offenders.Count == 0, "The UI may reach cleanup only through ICleanupService:\n" + string.Join('\n', offenders));
+        Assert.Contains("AddSingleton<ICleanupService, CleanupService>()", File.ReadAllText(Path.Combine(RepositoryFiles.Root, compositionRoot)), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SandboxMode_ExistsOnlyInDebugBuilds()
+    {
+        // The sandbox resolver is wrapped entirely in one #if DEBUG block.
+        var resolverFile = Path.Combine(RepositoryFiles.SourceDirectory, "SafeClean.Infrastructure", "Scanning", "DebugSandboxRootResolver.cs");
+        var resolverLines = File.ReadAllLines(resolverFile).Select(l => l.Trim()).Where(l => l.Length > 0).ToList();
+        Assert.Equal("#if DEBUG", resolverLines[0]);
+        Assert.Equal("#endif", resolverLines[^1]);
+        Assert.Single(resolverLines, l => l.StartsWith("#if", StringComparison.Ordinal));
+
+        // Everywhere else, anything that switches sandbox mode on sits inside an #if DEBUG block.
+        var sandboxCode = new Regex(@"DebugSandboxRootResolver|--sandbox-root|ReadSandboxArgument");
+        var offenders = new List<string>();
+        var users = 0;
+        foreach (var file in RepositoryFiles.SourceFiles().Where(f => !string.Equals(f, resolverFile, StringComparison.OrdinalIgnoreCase)))
+        {
+            var debugOnly = new Stack<bool>();
+            var lineNumber = 0;
+            foreach (var line in File.ReadLines(file))
+            {
+                lineNumber++;
+                var trimmed = line.Trim();
+                if (trimmed.StartsWith("#if", StringComparison.Ordinal))
+                {
+                    debugOnly.Push(trimmed == "#if DEBUG");
+                }
+                else if (trimmed.StartsWith("#else", StringComparison.Ordinal) || trimmed.StartsWith("#elif", StringComparison.Ordinal))
+                {
+                    debugOnly.Pop();
+                    debugOnly.Push(false); // the other branch is never "debug only"
+                }
+                else if (trimmed.StartsWith("#endif", StringComparison.Ordinal))
+                {
+                    debugOnly.Pop();
+                }
+                else if (sandboxCode.IsMatch(line))
+                {
+                    users++;
+                    if (!debugOnly.Contains(true))
+                    {
+                        offenders.Add($"{RepositoryFiles.Relative(file)}:{lineNumber}: {trimmed}");
+                    }
+                }
+            }
+        }
+
+        Assert.True(users > 0, "Expected the composition root to use the sandbox resolver in Debug builds.");
+        Assert.True(offenders.Count == 0, "Sandbox code outside #if DEBUG:\n" + string.Join('\n', offenders));
     }
 
     [Fact]

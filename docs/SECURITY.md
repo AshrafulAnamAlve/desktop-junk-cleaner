@@ -5,8 +5,11 @@
 
 Status: **Policy defined (Phase 0); guardrails in place (Phase 1); policy rules implemented and unit-tested
 in `SafeClean.Core` (Phase 2); read-only scanner implemented (Phase 3); Dry Run preview screen (Phase 4);
-handle-based cleanup engine implemented and tested on synthetic sandbox files only (Phase 5).
-Real deletion is NOT enabled: no screen or button can reach the cleanup code (enforced by tests).**
+handle-based cleanup engine implemented and tested on synthetic sandbox files only (Phase 5); cleanup
+test gate passed (Phase 6, 2026-10-17); cleanup connected to the Junk Cleaner screen behind Real mode
+and a confirmation dialog (Phase 7, 2026-10-17).
+Real deletion now happens only when the user switches Real mode on, selects files, presses the red
+delete button and confirms — and the cleanup service re-checks every file first.**
 This document is updated whenever behaviour changes. Values marked *(initial)* may be tuned later,
 but only with a documented reason and matching tests.
 
@@ -16,7 +19,7 @@ but only with a documented reason and matching tests.
 
 | Rule | How it is enforced |
 |---|---|
-| App starts in read-only scanning mode | No deletion code path is reachable until the user switches to Real mode (Phase 7+). |
+| App starts in read-only scanning mode | Real mode is off at every start and never saved; the delete button exists only in Real mode and only works with a selection, a scan under 30 minutes old and a confirmed dialog. Real mode switches itself off after every cleanup (tested in `JunkCleanerCleanupTests`). |
 | Dry Run is the default mode | `CleanupMode.DryRun` is the default value (value 0); enforced by `SafetyDefaultsTests`. |
 | Scanning never modifies files | Scanner opens files only with `FILE_READ_ATTRIBUTES` and full sharing; it never requests write/delete access. |
 | No automatic cleanup on first launch or in the background | Cleanup runs only from an explicit user confirmation dialog. There are no timers, schedulers or startup tasks. |
@@ -122,7 +125,7 @@ as freed space.
 - Automated guards: view models only use Core interfaces, and the App project cannot reference cleanup
   code until Phase 7.
 
-## 5. Cleanup procedure (implemented in Phase 5 — not enabled until Phase 7)
+## 5. Cleanup procedure (implemented in Phase 5, connected to the screen in Phase 7)
 
 Before any cleanup:
 
@@ -236,7 +239,7 @@ creating links in Temp, a misconfigured `TEMP` variable, race conditions, accide
 | T10 | Cloud/offline placeholder files (e.g. OneDrive) | Offline/recall/pinned attributes and reparse points are skipped. |
 | T11 | Read-only, hidden or system files | Skipped; attributes are never changed. |
 | T12 | UI selects or sends wrong items | The cleanup service independently revalidates everything; the UI never decides what is deletable. |
-| T13 | Accidental click | Dry Run default, explicit Real-mode switch, confirmation summary, visually distinct destructive button. |
+| T13 | Accidental click | Dry Run default; Real-mode switch off at every start and after every cleanup; red delete button shown only in Real mode, with no keyboard shortcut; confirmation dialog whose default button is Cancel (Enter, Esc and closing all cancel — checked end to end); no "don't ask again". |
 | T14 | Privacy leak | No network code (enforced by test); logs store root-relative paths and no file contents. |
 | T15 | Monitoring changes system state | Monitoring uses read-only APIs only; no kill, trim, standby-list or virtual-memory APIs (enforced by test). |
 | T16 | Crash during cleanup | Each file is deleted independently; partial results are reported; errors are logged, not fatal. |
@@ -251,6 +254,11 @@ deltas), disk capacity (`DriveInfo`), and process memory (`Process.GetProcesses`
 errors). SafeClean will not empty the standby list, trim working sets, kill processes, change virtual
 memory, or disable services/startup items, and offers **no "RAM cleaner" button**: Windows deliberately
 uses spare RAM as a cache, so high usage is normal and "freeing" it usually makes the PC slower.
+
+*Implemented in Phase 8* (`Infrastructure/Monitoring/SystemMonitor`): every Windows call used only reads.
+`ForbiddenApiTests` fails if code appears that kills, closes, pauses or re-prioritises programs, changes their
+memory limits or processor affinity, trims memory, purges the standby list, changes the file cache, or
+controls services. Values Windows won't give are shown as unknown ("n/a", "measuring"), never estimated.
 
 ## 9. Privacy
 
@@ -272,6 +280,14 @@ uses spare RAM as a cache, so high usage is normal and "freeing" it usually make
 - Protected folders redirected to network shares are left out of the protected list (they can't be inside
   the local Temp folder); the number left out is logged.
 - No perfect race-freedom claim — see section 6.
+- A Dry Run preview can't know whether a file will be in use or access-denied at cleanup time, so it
+  reports what SafeClean would **try** to delete (pinned by a test).
+- If another program holds a handle that only reads a file's attributes, Windows removes the file when that
+  handle closes rather than at once. It is still certain to go: nobody can open a file pending deletion, and
+  cancelling the deletion needs delete access, which SafeClean's exclusive open denied to everyone else.
+- The 8.3 short-name alias test and the encrypted-file (EFS) test can't run on this PC (short names are off
+  on the test drive; EFS would create an encryption certificate and isn't available on Windows Home). Both
+  cases are refused by checks that are tested in other ways (OS-reported final path; attribute allow-list).
 
 ## 11. Deliberately unsupported in version 1
 
@@ -280,3 +296,33 @@ folders, browser caches, other applications' caches, other users' or shared temp
 registry, startup entries, restore points, event logs, page/hibernation files, memory "cleaning",
 directory deletion, secure wiping, scheduled/background cleaning, and any location whose safety has
 not been independently assessed, documented and tested.
+
+## 12. The cleanup screen and the Debug-only sandbox mode (Phase 7)
+
+**Steps in front of every real cleanup** (all tested in `JunkCleanerCleanupTests`; the last five were also
+checked end to end in sandbox mode):
+
+1. A completed scan younger than 30 minutes (older results: no dialog, "scan again").
+2. Real mode switched on — off at every start, impossible while elevated, off again after every cleanup.
+3. At least one file selected (only *Eligible* in bulk; *Needs review* only one by one; *Skipped* never).
+4. The red "Delete N files…" button, shown only in Real mode, with no keyboard shortcut.
+5. A confirmation dialog: count, estimated size, categories, a "needs review" warning, "not moved to the
+   Recycle Bin". **Cancel is the default button and has focus**; Enter, Esc and closing the window cancel.
+6. The cleanup service then applies every check in §5 again, file by file.
+
+The view model sends only **candidate IDs** of the current scan and `CleanupMode.Real`; it never decides
+what may be deleted. After the cleanup the scan results are closed (a new scan is needed) and the report
+shows exactly what the service returned; "space freed" comes only from files actually deleted.
+
+**Debug-only sandbox mode** (for trying cleanup by hand on synthetic files):
+
+- Started with `--sandbox-root <folder>` — **Debug builds only**. The code sits inside `#if DEBUG` (checked by
+  `ArchitectureTests.SandboxMode_ExistsOnlyInDebugBuilds`), and a Release build was checked to contain neither
+  the sandbox class nor the `--sandbox-root` switch.
+- The folder must contain a plain file named `.safeclean-sandbox`; otherwise SafeClean **refuses to start**.
+  If the marker disappears later, the folder is refused (no scan, no cleanup). There is **no fallback** to the
+  real Temp folder.
+- All root rules still apply (fixed NTFS drive, no links, not protected…) except R5: the folder is compared
+  with itself instead of `%LOCALAPPDATA%\Temp`.
+- An orange "SANDBOX MODE" banner names the folder on every page, and the confirmation dialog repeats it.
+- `ManualSandboxSetup` (an opt-in test) creates such a folder of synthetic files under `<repository>\.sandbox\`.

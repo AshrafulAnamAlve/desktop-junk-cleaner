@@ -2,7 +2,8 @@
 
 Legend: `[x]` done and verified · `[~]` in progress · `[ ]` not started
 
-**Real deletion stays disabled until Phase 7, and only after the Phase 6 test gate passes.**
+**Real deletion was enabled in Phase 7 (2026-10-17), after the Phase 6 test gate passed — only behind
+Real mode, a selection and a confirmation dialog.**
 
 The original 12-phase plan was split further so that deletion code is written, tested and reviewed
 *before* it is connected to any button.
@@ -17,9 +18,9 @@ Detailed plan for each phase: [`docs/phases/`](phases/README.md) (one file per p
 | 3 | Read-only Temp scanner + sandbox integration tests | Done (2026-10-16) |
 | 4 | Junk Cleaner screen: Dry Run preview, categories, checkboxes (no deletion code) | Done (2026-10-16) |
 | 5 | Handle-based cleanup engine + audit logging (not connected to UI) | Done (2026-10-16) |
-| 6 | Cleanup test gate: races, replacement, locks, partial failures, byte accounting | Not started |
-| 7 | Connect cleanup to UI behind Real mode + confirmation + result report | Not started |
-| 8 | Read-only RAM / CPU / disk / process monitoring services + tests | Not started |
+| 6 | Cleanup test gate: races, replacement, locks, partial failures, byte accounting | Done (2026-10-17) — passed |
+| 7 | Connect cleanup to UI behind Real mode + confirmation + result report | Done (2026-10-17) — **real deletion enabled** |
+| 8 | Read-only RAM / CPU / disk / process monitoring services + tests | Done (2026-10-17) |
 | 9 | Dashboard and Performance screens on real data; UI polish and accessibility | Not started |
 | 10 | Settings, restrict-only exclusions, logging controls, cleanup history | Not started |
 | 11 | Security review, regression, failure simulation, manual verification | Not started |
@@ -79,18 +80,23 @@ Detailed plan for each phase: [`docs/phases/`](phases/README.md) (one file per p
 - [x] Not connected to the UI (architecture test); delete APIs allowed in one file only (forbidden-API test)
 - [x] Verified: 0 warnings; 508 passed, 3 skipped; tests on synthetic sandbox files only; mutation check caught 11/12 planted bugs (the 12th is backed up by a second layer)
 
-## Phase 6 – Cleanup test gate (must pass before Phase 7)
-- [ ] All tests listed in `TESTING.md` § "Gate before enabling real deletion"
-- [ ] Self-review of the engine against `SECURITY.md`
+## Phase 6 – Cleanup test gate (must pass before Phase 7) ✅ (2026-10-17) — PASSED
+- [x] All 24 items in `TESTING.md` § "Gate before enabling real deletion" (3 sub-cases skipped with written reasons)
+- [x] Self-review of the engine against `SECURITY.md`; one robustness fix (report kept even if progress/logging fails)
+- [x] Verified: 0 warnings; 553 passed, 5 skipped, 0 failed; concurrency gate 50 rounds with ≈550 mid-cleanup look-alikes, all survived; mutation check 6/6 caught
 
-## Phase 7 – Enable cleanup in the UI
-- [ ] Real-mode switch (off by default, not persisted across launches in v1)
-- [ ] Confirmation dialog with count and estimated size
-- [ ] Results: deleted / failed / skipped, bytes freed from successes only
+## Phase 7 – Enable cleanup in the UI ✅ (2026-10-17) — real deletion enabled
+- [x] Real-mode switch (off at every start, never saved, impossible while elevated, off again after each cleanup)
+- [x] Red delete button (Real mode only); confirmation dialog with count, size, categories, review warning; Cancel is default
+- [x] Results: deleted / failed / skipped, bytes freed from successes only; rescan required afterwards
+- [x] Debug-only sandbox mode with marker file; never in Release (source test + binary check)
+- [x] Verified: 0 warnings; 576 passed, 6 skipped; end-to-end in sandbox mode with 4 safety checks; real Temp not cleaned
 
-## Phase 8 – Monitoring services
-- [ ] RAM, CPU, disk, process list (read-only), tolerant of access errors
-- [ ] Tests with fakes; explanation text about Windows memory caching
+## Phase 8 – Monitoring services ✅ (2026-10-17)
+- [x] RAM, CPU, disk, process list (read-only), tolerant of access errors; unknown values never guessed
+- [x] Pure maths tests with synthetic numbers + real read-only readings; explanation text about Windows memory caching
+- [x] 6 more forbidden-API patterns (priority, affinity, memory limits, suspending programs, services, file cache)
+- [x] Verified: 0 warnings; 608 passed, 7 skipped; readings match Windows' own figures (CPU within 2–3 points when sampled side by side)
 
 ## Phase 9 – Dashboard and polish
 - [ ] Dashboard cards on live data; Performance screen

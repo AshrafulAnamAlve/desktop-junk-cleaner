@@ -98,21 +98,38 @@ public sealed class CleanupService(
 
             var entry = Entry(id, candidate, result);
             entries.Add(entry);
-            LogEntry(mode, entry);
-            progress?.Report(new CleanupProgress(entries.Count, ids.Count));
+
+            try
+            {
+                LogEntry(mode, entry);
+                progress?.Report(new CleanupProgress(entries.Count, ids.Count));
+            }
+            catch (Exception)
+            {
+                // Reporting must never lose the record of files already deleted: stop, but still return the report.
+                stoppedByError = true;
+            }
         }
 
         var report = CleanupReport.Completed(mode, startedAt, timeProvider.GetUtcNow(), entries, wasCancelled, stoppedByError);
-        logger.LogInformation(
-            "Cleanup ({Mode}) finished: {Deleted} deleted, {WouldDelete} would be deleted, {Skipped} skipped, {Failed} failed, {Bytes} bytes freed, cancelled: {Cancelled}, stopped by error: {Stopped}.",
-            mode,
-            report.DeletedCount,
-            report.WouldDeleteCount,
-            report.SkippedCount,
-            report.FailedCount,
-            report.BytesFreed,
-            report.WasCancelled,
-            report.StoppedByError);
+        try
+        {
+            logger.LogInformation(
+                "Cleanup ({Mode}) finished: {Deleted} deleted, {WouldDelete} would be deleted, {Skipped} skipped, {Failed} failed, {Bytes} bytes freed, cancelled: {Cancelled}, stopped by error: {Stopped}.",
+                mode,
+                report.DeletedCount,
+                report.WouldDeleteCount,
+                report.SkippedCount,
+                report.FailedCount,
+                report.BytesFreed,
+                report.WasCancelled,
+                report.StoppedByError);
+        }
+        catch (Exception)
+        {
+            // The report itself is what matters; a failing logger must not hide it.
+        }
+
         return report;
     }
 

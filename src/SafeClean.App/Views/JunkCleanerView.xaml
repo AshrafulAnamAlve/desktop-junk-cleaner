@@ -26,9 +26,30 @@
           <Button Style="{StaticResource Button.Secondary}" Command="{Binding CancelScanCommand}" Content="Cancel" Margin="8,0,0,0"
                   Visibility="{Binding IsScanning, Converter={StaticResource BoolToVisibility}}" />
         </StackPanel>
-        <Border DockPanel.Dock="Right" Style="{StaticResource Badge}" Background="{StaticResource Brush.Accent.Soft}" Padding="10,6"
-                VerticalAlignment="Center" Margin="12,0,0,0">
-          <TextBlock Text="Read-only · Dry Run" FontSize="12" Foreground="{StaticResource Brush.Accent.SoftText}" />
+        <Border DockPanel.Dock="Right" Padding="10,6" CornerRadius="10" VerticalAlignment="Center" Margin="12,0,0,0">
+          <Border.Style>
+            <Style TargetType="Border">
+              <Setter Property="Background" Value="{StaticResource Brush.Accent.Soft}" />
+              <Style.Triggers>
+                <DataTrigger Binding="{Binding IsRealMode}" Value="True">
+                  <Setter Property="Background" Value="{StaticResource Brush.Danger.Soft}" />
+                </DataTrigger>
+              </Style.Triggers>
+            </Style>
+          </Border.Style>
+          <TextBlock Text="{Binding ModeBadgeText}" FontSize="12">
+            <TextBlock.Style>
+              <Style TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{StaticResource Brush.Accent.SoftText}" />
+                <Style.Triggers>
+                  <DataTrigger Binding="{Binding IsRealMode}" Value="True">
+                    <Setter Property="Foreground" Value="{StaticResource Brush.Danger}" />
+                    <Setter Property="FontWeight" Value="SemiBold" />
+                  </DataTrigger>
+                </Style.Triggers>
+              </Style>
+            </TextBlock.Style>
+          </TextBlock>
         </Border>
         <StackPanel VerticalAlignment="Center" Margin="16,0,0,0">
           <TextBlock Text="{Binding StatusText}" Style="{StaticResource Text.Body}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
@@ -287,6 +308,67 @@
       </StackPanel>
     </Border>
 
+    <!-- While a real cleanup runs -->
+    <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0,12,0,0" Padding="32" VerticalAlignment="Top"
+            Visibility="{Binding IsCleaning, Converter={StaticResource BoolToVisibility}}">
+      <StackPanel HorizontalAlignment="Center" MaxWidth="580">
+        <TextBlock Style="{StaticResource Text.EmptyTitle}" Text="Cleaning…" HorizontalAlignment="Center" />
+        <ProgressBar IsIndeterminate="{Binding IsCleaning}" Width="320" Margin="0,16,0,12" AutomationProperties.Name="Cleanup in progress" />
+        <TextBlock Text="{Binding CleanupProgressText}" Style="{StaticResource Text.Body}" HorizontalAlignment="Center" />
+        <TextBlock Style="{StaticResource Text.Caption}" TextAlignment="Center" Margin="0,8,0,0"
+                   Text="Each file is checked again before it is deleted. Cancel stops before the next file — a file is never left half-done." />
+        <Button Style="{StaticResource Button.Secondary}" Command="{Binding CancelCleanupCommand}" Content="Cancel"
+                HorizontalAlignment="Center" Margin="0,16,0,0" AutomationProperties.Name="Cancel cleanup" />
+      </StackPanel>
+    </Border>
+
+    <!-- After a cleanup: exactly what the cleanup service reported -->
+    <ScrollViewer Grid.Row="2" Margin="0,12,0,0" VerticalScrollBarVisibility="Auto" Focusable="False"
+                  Visibility="{Binding HasReport, Converter={StaticResource BoolToVisibility}}">
+      <Border Style="{StaticResource Card}" Padding="28,24" VerticalAlignment="Top">
+        <StackPanel DataContext="{Binding Report}" MaxWidth="760" HorizontalAlignment="Left">
+          <TextBlock Text="{Binding Headline}" Style="{StaticResource Text.EmptyTitle}" TextWrapping="Wrap"
+                     AutomationProperties.AutomationId="ReportHeadline" />
+          <TextBlock Text="{Binding SpaceFreedText}" Foreground="{StaticResource Brush.Success}" FontWeight="SemiBold"
+                     TextWrapping="Wrap" Margin="0,6,0,0" AutomationProperties.AutomationId="ReportSpaceFreed" />
+          <TextBlock Style="{StaticResource Text.Body}" Margin="0,10,0,0" AutomationProperties.AutomationId="ReportCounts">
+            <Run Text="{Binding DeletedText, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding SkippedText, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding FailedText, Mode=OneWay}" />
+          </TextBlock>
+
+          <TextBlock Text="Skipped (kept exactly as they were)" Style="{StaticResource Text.CardTitle}" Margin="0,18,0,6"
+                     Visibility="{Binding HasSkipped, Converter={StaticResource BoolToVisibility}}" />
+          <ItemsControl ItemsSource="{Binding SkippedGroups}" Focusable="False">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding StringFormat='•  {0}'}" Style="{StaticResource Text.Body}" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <TextBlock Text="Failed (not deleted)" Style="{StaticResource Text.CardTitle}" Margin="0,18,0,6"
+                     Visibility="{Binding HasFailures, Converter={StaticResource BoolToVisibility}}" />
+          <ItemsControl ItemsSource="{Binding FailedLines}" Focusable="False">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding StringFormat='•  {0}'}" Style="{StaticResource Text.Body}" Foreground="{StaticResource Brush.Warning}" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <ItemsControl ItemsSource="{Binding Notes}" Margin="0,18,0,0" Focusable="False">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding}" Style="{StaticResource Text.Caption}" Margin="0,0,0,4" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <Button Style="{StaticResource Button.Primary}" Content="Scan again" HorizontalAlignment="Left" Margin="0,20,0,0"
+                  Command="{Binding DataContext.ScanCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+        </StackPanel>
+      </Border>
+    </ScrollViewer>
+
     <!-- Completed but nothing found -->
     <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0,12,0,0" Padding="32" VerticalAlignment="Top"
             Visibility="{Binding IsEmptyResult, Converter={StaticResource BoolToVisibility}}">
@@ -300,7 +382,7 @@
     <Grid Grid.Row="2" Margin="0,12,0,0" Background="{StaticResource Brush.Overlay}"
           Visibility="{Binding HasPreview, Converter={StaticResource BoolToVisibility}}">
       <Border Style="{StaticResource Card}" BorderBrush="{StaticResource Brush.Accent}" Padding="24,20" MaxWidth="620" Margin="24"
-              HorizontalAlignment="Center" VerticalAlignment="Center" AutomationProperties.Name="Dry Run preview">
+              HorizontalAlignment="Center" VerticalAlignment="Center">
         <StackPanel>
           <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
             <TextBlock Text="&#xE946;" FontFamily="{StaticResource Font.Icons}" FontSize="16" Foreground="{StaticResource Brush.Accent}"
@@ -322,17 +404,55 @@
       </Border>
     </Grid>
 
-    <!-- Selection bar -->
+    <!-- Selection bar, Real mode switch and the (red) delete button -->
     <StackPanel Grid.Row="3" Visibility="{Binding HasResults, Converter={StaticResource BoolToVisibility}}">
-      <Border Style="{StaticResource Card}" Margin="0,12,0,0" Padding="16,10">
-        <DockPanel>
-          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-            <Button Style="{StaticResource Button.Secondary}" Command="{Binding SelectAllEligibleCommand}" Content="Select all safe" />
-            <Button Style="{StaticResource Button.Secondary}" Command="{Binding ClearSelectionCommand}" Content="Clear" Margin="8,0,0,0" />
-            <Button Style="{StaticResource Button.Primary}" Command="{Binding PreviewCommand}" Content="_Preview cleanup (Dry Run)" Margin="8,0,0,0" />
-          </StackPanel>
-          <TextBlock Text="{Binding SelectionText}" VerticalAlignment="Center" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,12,0" />
-        </DockPanel>
+      <!-- In Real mode the whole bar turns red-bordered and the hint next to the switch becomes the warning -->
+      <Border Margin="0,12,0,0" Padding="16,10">
+        <Border.Style>
+          <Style TargetType="Border" BasedOn="{StaticResource Card}">
+            <Style.Triggers>
+              <DataTrigger Binding="{Binding IsRealMode}" Value="True">
+                <Setter Property="BorderBrush" Value="{StaticResource Brush.Danger}" />
+                <Setter Property="BorderThickness" Value="2" />
+              </DataTrigger>
+            </Style.Triggers>
+          </Style>
+        </Border.Style>
+        <StackPanel>
+          <DockPanel>
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+              <Button Style="{StaticResource Button.Secondary}" Command="{Binding SelectAllEligibleCommand}" Content="Select all safe" />
+              <Button Style="{StaticResource Button.Secondary}" Command="{Binding ClearSelectionCommand}" Content="Clear" Margin="8,0,0,0" />
+              <Button Style="{StaticResource Button.Primary}" Command="{Binding PreviewCommand}" Content="_Preview cleanup (Dry Run)" Margin="8,0,0,0" />
+            </StackPanel>
+            <TextBlock Text="{Binding SelectionText}" VerticalAlignment="Center" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,12,0" />
+          </DockPanel>
+          <Border BorderBrush="{StaticResource Brush.Border}" BorderThickness="0,1,0,0" Margin="0,10,0,0" Padding="0,10,0,0">
+            <DockPanel>
+              <!-- Shown only in Real mode; enabled only with a selection. No access key, so it can't be triggered by Alt+letter. -->
+              <Button DockPanel.Dock="Right" Style="{StaticResource Button.Danger}" Command="{Binding DeleteCommand}"
+                      Content="{Binding DeleteButtonText}" Margin="12,0,0,0"
+                      Visibility="{Binding IsRealMode, Converter={StaticResource BoolToVisibility}}"
+                      AutomationProperties.AutomationId="DeleteButton" />
+              <CheckBox Style="{StaticResource ToggleSwitch}" IsChecked="{Binding IsRealMode}" IsEnabled="{Binding CanUseRealMode}"
+                        Content="Real cleanup mode" FontWeight="SemiBold" VerticalAlignment="Center"
+                        AutomationProperties.AutomationId="RealModeSwitch" AutomationProperties.Name="Real cleanup mode" />
+              <TextBlock Text="{Binding RealModeHint}" VerticalAlignment="Center" Margin="16,0,0,0" TextWrapping="Wrap"
+                         AutomationProperties.AutomationId="RealModeHint">
+                <TextBlock.Style>
+                  <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Caption}">
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding IsRealMode}" Value="True">
+                        <Setter Property="Foreground" Value="{StaticResource Brush.Danger}" />
+                        <Setter Property="FontWeight" Value="SemiBold" />
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </TextBlock.Style>
+              </TextBlock>
+            </DockPanel>
+          </Border>
+        </StackPanel>
       </Border>
     </StackPanel>
   </Grid>

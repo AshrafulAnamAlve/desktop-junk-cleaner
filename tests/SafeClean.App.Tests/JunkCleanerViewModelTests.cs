@@ -7,7 +7,7 @@ namespace SafeClean.App.Tests;
 
 public sealed class JunkCleanerViewModelTests
 {
-    private static JunkCleanerViewModel Create(FakeTempScanner scanner) => new(scanner, NullLogger<JunkCleanerViewModel>.Instance);
+    private static JunkCleanerViewModel Create(FakeTempScanner scanner) => Pages.JunkCleaner(scanner);
 
     private static async Task<JunkCleanerViewModel> ScannedAsync(ScanResult? result = null)
     {

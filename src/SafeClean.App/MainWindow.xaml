@@ -52,24 +52,38 @@
 
         <StackPanel DockPanel.Dock="Bottom">
           <Border Style="{StaticResource Badge}" Background="{StaticResource Brush.Warning.Soft}" Margin="0,0,0,8"
-                  Visibility="{Binding IsElevated, Converter={StaticResource BoolToVisibility}}"
-                  AutomationProperties.Name="Warning: running as administrator. Cleanup will be disabled.">
+                  Visibility="{Binding IsElevated, Converter={StaticResource BoolToVisibility}}">
             <StackPanel>
-              <TextBlock Text="ADMINISTRATOR" FontSize="11" FontWeight="Bold" Foreground="{StaticResource Brush.Warning}" />
+              <TextBlock Text="ADMINISTRATOR" FontSize="11" FontWeight="Bold" Foreground="{StaticResource Brush.Warning}"
+                         AutomationProperties.Name="Warning: running as administrator. Cleanup will be disabled." />
               <TextBlock Text="Cleanup will be disabled" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"
                          Foreground="{StaticResource Brush.Warning}" />
             </StackPanel>
           </Border>
           <Border Style="{StaticResource Badge}" Background="{StaticResource Brush.Accent.Soft}"
-                  AutomationProperties.Name="Dry Run mode: preview only, nothing is deleted.">
+                  Visibility="{Binding IsRealMode, Converter={StaticResource InverseBoolToVisibility}}">
             <StackPanel>
               <StackPanel Orientation="Horizontal">
                 <TextBlock Text="&#xE7B3;" FontFamily="{StaticResource Font.Icons}" FontSize="12" VerticalAlignment="Center"
-                           Margin="0,0,6,0" Foreground="{StaticResource Brush.Accent.SoftText}" />
-                <TextBlock Text="DRY RUN" FontSize="11" FontWeight="Bold" Foreground="{StaticResource Brush.Accent.SoftText}" />
+                           Margin="0,0,6,0" Foreground="{StaticResource Brush.Accent.SoftText}" AutomationProperties.Name="" />
+                <TextBlock Text="DRY RUN" FontSize="11" FontWeight="Bold" Foreground="{StaticResource Brush.Accent.SoftText}"
+                           AutomationProperties.Name="Dry Run mode: preview only, nothing is deleted." />
               </StackPanel>
               <TextBlock Text="Preview only · nothing is deleted" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"
                          Foreground="{StaticResource Brush.Accent.SoftText}" />
+            </StackPanel>
+          </Border>
+          <Border Style="{StaticResource Badge}" Background="{StaticResource Brush.Danger.Soft}" BorderBrush="{StaticResource Brush.Danger}" BorderThickness="1"
+                  Visibility="{Binding IsRealMode, Converter={StaticResource BoolToVisibility}}">
+            <StackPanel>
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Text="&#xE7BA;" FontFamily="{StaticResource Font.Icons}" FontSize="12" VerticalAlignment="Center"
+                           Margin="0,0,6,0" Foreground="{StaticResource Brush.Danger}" AutomationProperties.Name="" />
+                <TextBlock Text="REAL MODE" FontSize="11" FontWeight="Bold" Foreground="{StaticResource Brush.Danger}"
+                           AutomationProperties.Name="Real mode: selected files can be permanently deleted after you confirm." />
+              </StackPanel>
+              <TextBlock Text="Selected files can be deleted" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"
+                         Foreground="{StaticResource Brush.Danger}" />
             </StackPanel>
           </Border>
         </StackPanel>
@@ -91,6 +105,14 @@
       </Grid.RowDefinitions>
 
       <StackPanel Margin="40,30,40,22">
+        <!-- Debug builds only: impossible to miss when SafeClean works on a test folder instead of Temp -->
+        <Border Background="{StaticResource Brush.Warning.Soft}" BorderBrush="{StaticResource Brush.Warning}" BorderThickness="1"
+                CornerRadius="8" Padding="14,8" Margin="0,0,0,16"
+                Visibility="{Binding IsSandbox, Converter={StaticResource BoolToVisibility}}">
+          <!-- Accessibility names go on the TextBlock: a Border isn't visible to screen readers or UI Automation. -->
+          <TextBlock Text="{Binding SandboxBannerText}" Foreground="{StaticResource Brush.Warning}" FontWeight="Bold" TextWrapping="Wrap"
+                     AutomationProperties.AutomationId="SandboxBanner" />
+        </Border>
         <TextBlock Text="{Binding CurrentPage.Title}" Style="{StaticResource Text.PageTitle}" />
         <TextBlock Text="{Binding CurrentPage.Subtitle}" Style="{StaticResource Text.PageSubtitle}" />
       </StackPanel>

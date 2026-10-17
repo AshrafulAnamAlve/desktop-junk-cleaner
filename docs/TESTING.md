@@ -130,7 +130,44 @@ the App can't reference `ICleanupService`, `CleanupService` or the engine until 
 | D7 audit line per file, Temp-relative | `CleanupService.LogEntry` + summary line | ✅ |
 | One file at a time; cancel between files | `foreach` in `CleanupService.Clean`; token checked before each file | ✅ |
 
+## Cleanup screen tests (implemented in Phase 7)
+
+| Test class | What it covers |
+|---|---|
+| `JunkCleanerCleanupTests` (App, fakes only) | Real mode off at start and after restart; elevated → can't switch on; delete needs Real mode + selection; dialog cancelled → service never called; confirmed → one call, exactly the selected IDs, `Real`; dialog contents (count, size, categories, review warning, sandbox line); results older than 30 minutes → no dialog; report exactly as returned; space freed only from deletions; refused cleanup; service failure; controls locked while cleaning; cancel reaches the service; results closed and Real mode off afterwards; sidebar badge follows the switch |
+| `DebugSandboxRootResolverTests` (Debug only) | Marker required; marker must be a file; a junction as sandbox refused; marker removed after the scan → cleanup refused, nothing deleted |
+| `ArchitectureTests` (Core) | `App_ReachesCleanupOnlyThroughTheServiceInterface` (replaces the "no cleanup until Phase 7" guard); `SandboxMode_ExistsOnlyInDebugBuilds` |
+| `ManualSandboxSetup` (Explicit) | Creates a folder of synthetic files for manual testing (see `README.md`) |
+
+**End-to-end check in sandbox mode** (UI Automation script, Debug build): the script refuses to press
+anything destructive unless (1) the process command line names the sandbox, (2) the SANDBOX banner names
+it, (3) the scan found exactly the sandbox's 7 entries and (4) the dialog says only the sandbox can be
+affected. It then checks that Enter cancels the dialog, deletes via the red button, compares the report
+with the files on disk, and rescans.
+
+*Lessons learned:* (a) accessibility names on a WPF `Border` are invisible to screen readers and UI
+Automation — put them on text or controls (found because safety check 2 failed); this also means the Phase 4
+script's "preview closed" check could never fail. (b) UI Automation lists an owned modal dialog **under its
+owner window**, not at the top level. (c) PowerShell 5.1 reads scripts without a BOM as ANSI, so non-ASCII
+characters in search patterns don't match — keep scripts ASCII.
+
+## Monitoring tests (implemented in Phase 8)
+
+| Test class | What it covers |
+|---|---|
+| `MonitoringMathTests` (Core, synthetic numbers) | CPU % from time differences (example, fully idle/busy, no time passed, counters going backwards, impossible idle, huge counters); memory and drive used bytes/percent; total 0 → unknown; clamping |
+| `SystemMonitorTests` (real, read-only) | Memory plausible and within 2% of the .NET runtime's figure; first CPU reading "measuring", then 0–100; system drive present, only fixed drives, free ≤ total; processes sorted, limited, include this test process, no errors for protected ones |
+| `RealReadingsForComparison` (Explicit) | Prints memory, 8 timestamped CPU samples, drives and top 5 programs for comparison with Task Manager or Windows counters |
+
+Compare CPU readings **side by side in time** (for example with `Get-Counter '\Processor(_Total)\% Processor Time'`
+running at the same moment): a single sample taken a few seconds apart can differ hugely during a load burst.
+
 ## Gate before enabling real deletion (Phase 6)
+
+**Status: PASSED on 2026-10-17.** The item-by-item results table (test names, actual results, and the
+written reasons for the 3 skipped sub-cases) is in [`docs/phases/PHASE-06-cleanup-test-gate.md`](phases/PHASE-06-cleanup-test-gate.md).
+Gate tests live in `tests/SafeClean.Infrastructure.Tests/Cleanup/CleanupGateTests.cs` (named `Gate01…Gate24`);
+several items are covered by the Phase 5 `CleanupServiceTests` and `TempScannerTests`.
 
 Every item must have a passing automated test (or a documented, justified skip) before Phase 7:
 
@@ -193,6 +230,20 @@ in `SECURITY.md` §6; tests confirm the implementation follows it.
 | 2026-10-16 | 5 | Mutation check, attempt 1 | ❌ Discarded: binaries from earlier planted bugs were reused (restored files keep old timestamps) |
 | 2026-10-16 | 5 | Mutation check, attempt 2 (full rebuild per mutation, baseline 0 failing) | ✅ 11/12 caught; M10 survives by design (a second layer refuses the same files); final run 0 failing; files restored byte-for-byte |
 | 2026-10-16 | 5 | App run by the project owner | ✅ Read-only scan in 8.7 s (1,998 safe / 959 review / 16,558 skipped); no cleanup lines in the log |
+| 2026-10-17 | 6 | `dotnet build SafeClean.sln -c Debug` | ✅ 0 warnings, 0 errors |
+| 2026-10-17 | 6 | Gate tests (`CleanupGateTests`, detailed output) | ✅ 43 passed, 0 failed, 2 skipped (file symlink: no Developer Mode; 8.3 alias: short names off on F:) — all passed on the first run |
+| 2026-10-17 | 6 | Gate 23 run 3 times with statistics | ✅ Each run: 50 rounds × 20 files, ≈660 deleted, ≈330 skipped because of a race, ≈550 look-alikes created mid-cleanup — all survived |
+| 2026-10-17 | 6 | `dotnet test --solution SafeClean.sln -c Debug` | ✅ 558 total: 553 passed, 0 failed, 5 skipped (Core 356; Infrastructure 148 + 5; App 49); no sandbox folders left behind |
+| 2026-10-17 | 6 | Mutation check of the gate (planted bugs, full rebuild each, baseline 0 failing) | ✅ 6/6 compiling mutants caught (G1–G3, G4a, G4b, G5); the first G4 didn't compile (invalid mutant) and was replaced by G4a/G4b; final run 0 failing; files restored byte-for-byte |
+| 2026-10-17 | 7 | `dotnet build SafeClean.sln -c Debug` and `-c Release` (App) | ✅ 0 warnings, 0 errors |
+| 2026-10-17 | 7 | `dotnet test --solution SafeClean.sln -c Debug` (first run) | ❌ 581/582 — a new test sorted IDs that aren't sortable (test fixed) |
+| 2026-10-17 | 7 | `dotnet test --solution SafeClean.sln -c Debug` | ✅ 582 total: 576 passed, 0 failed, 6 skipped (Core 357; Infrastructure 153 + 6; App 66) |
+| 2026-10-17 | 7 | Release binaries searched for sandbox code | ✅ `DebugSandboxRootResolver` 0 hits, `--sandbox-root` 0 hits (Debug: present) |
+| 2026-10-17 | 7 | End-to-end in sandbox mode (UI Automation) | ✅ 4 safety checks passed; Enter = Cancel; exactly the 3 safe files deleted (62.0 KB); others kept; DRY RUN restored; rescan 4 entries; audit log Temp-relative only. Two earlier runs stopped safely before deleting (script bug; banner invisible to UI Automation → accessibility fix) |
+| 2026-10-17 | 8 | `dotnet build SafeClean.sln -c Debug` | ✅ 0 warnings, 0 errors |
+| 2026-10-17 | 8 | `dotnet test --solution SafeClean.sln -c Debug` | ✅ 615 total: 608 passed, 0 failed, 7 skipped (Core 382; Infrastructure 160 + 7; App 66) — new tests passed first time |
+| 2026-10-17 | 8 | Readings vs Windows (CIM, `Get-Process`) | ✅ RAM total 11.90 GiB both, available 4.38 vs 4.43 GiB; drives C–F identical; same top 5 programs within ~1% |
+| 2026-10-17 | 8 | CPU vs `\Processor(_Total)\% Processor Time` | ❌ first single samples 86.4% vs 12% (taken at different moments in a load burst) → ✅ side by side for 7 s: within 2–3 points each second |
 
 ## Manual test checklist (to be completed in Phase 11)
 

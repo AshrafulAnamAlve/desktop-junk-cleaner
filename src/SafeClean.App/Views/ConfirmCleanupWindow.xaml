@@ -1,0 +1,55 @@
+<Window x:Class="SafeClean.App.Views.ConfirmCleanupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Confirm permanent deletion"
+        Width="540" SizeToContent="Height" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Background="{StaticResource Brush.Window}"
+        Foreground="{StaticResource Brush.Text.Primary}"
+        FontFamily="{StaticResource Font.Text}" FontSize="14"
+        UseLayoutRounding="True"
+        FocusManager.FocusedElement="{Binding ElementName=CancelButton}"
+        AutomationProperties.Name="Confirm permanent deletion">
+
+  <Border BorderBrush="{StaticResource Brush.Danger}" BorderThickness="0,4,0,0" Padding="28,22,28,24">
+    <StackPanel>
+      <Border Style="{StaticResource Badge}" Background="{StaticResource Brush.Warning.Soft}" Margin="0,0,0,14"
+              Visibility="{Binding IsSandbox, Converter={StaticResource BoolToVisibility}}">
+        <TextBlock Text="{Binding SandboxText}" Foreground="{StaticResource Brush.Warning}" FontWeight="SemiBold" TextWrapping="Wrap" />
+      </Border>
+
+      <DockPanel>
+        <TextBlock DockPanel.Dock="Left" Text="&#xE74D;" FontFamily="{StaticResource Font.Icons}" FontSize="20"
+                   Foreground="{StaticResource Brush.Danger}" VerticalAlignment="Center" Margin="0,0,12,0" />
+        <TextBlock Text="{Binding Title}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
+      </DockPanel>
+
+      <TextBlock Text="{Binding SizeText}" FontWeight="SemiBold" Margin="0,12,0,0" />
+      <ItemsControl ItemsSource="{Binding Breakdown}" Margin="0,6,0,0" Focusable="False">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate>
+            <TextBlock Text="{Binding StringFormat='•  {0}'}" Style="{StaticResource Text.Body}" />
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <Border Background="{StaticResource Brush.Warning.Soft}" CornerRadius="8" Padding="12,8" Margin="0,14,0,0"
+              Visibility="{Binding HasReviewWarning, Converter={StaticResource BoolToVisibility}}">
+        <TextBlock Text="{Binding ReviewWarning}" Foreground="{StaticResource Brush.Warning}" TextWrapping="Wrap" />
+      </Border>
+
+      <TextBlock Text="{Binding PermanentText}" Foreground="{StaticResource Brush.Danger}" FontWeight="SemiBold"
+                 TextWrapping="Wrap" Margin="0,14,0,0" />
+      <TextBlock Text="{Binding RecheckText}" Style="{StaticResource Text.Body}" Margin="0,6,0,0" />
+
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,22,0,0">
+        <!-- Cancel: default (Enter), cancel (Esc) and focused when the dialog opens -->
+        <Button x:Name="CancelButton" Style="{StaticResource Button.Secondary}" Content="Cancel" MinWidth="110"
+                IsDefault="True" IsCancel="True" AutomationProperties.Name="Cancel, keep all files" />
+        <!-- No access key on purpose: only a deliberate click (or Tab to it, then Space) deletes -->
+        <Button x:Name="DeleteButton" Style="{StaticResource Button.Danger}" Content="{Binding DeleteButtonText}" Margin="12,0,0,0"
+                Click="OnDeleteClick" AutomationProperties.Name="{Binding DeleteButtonText, StringFormat='{}{0} permanently'}" />
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</Window>
