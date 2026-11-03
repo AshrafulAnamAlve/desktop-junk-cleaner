@@ -13,7 +13,7 @@
 
   <Border BorderBrush="{StaticResource Brush.Danger}" BorderThickness="0,4,0,0" Padding="28,22,28,24">
     <StackPanel>
-      <Border Style="{StaticResource Badge}" Background="{StaticResource Brush.Warning.Soft}" Margin="0,0,0,14"
+      <Border Style="{StaticResource Notice.Warning}" Margin="0,0,0,14"
               Visibility="{Binding IsSandbox, Converter={StaticResource BoolToVisibility}}">
         <TextBlock Text="{Binding SandboxText}" Foreground="{StaticResource Brush.Warning}" FontWeight="SemiBold" TextWrapping="Wrap" />
       </Border>
@@ -33,7 +33,7 @@
         </ItemsControl.ItemTemplate>
       </ItemsControl>
 
-      <Border Background="{StaticResource Brush.Warning.Soft}" CornerRadius="8" Padding="12,8" Margin="0,14,0,0"
+      <Border Style="{StaticResource Notice.Warning}" Margin="0,14,0,0"
               Visibility="{Binding HasReviewWarning, Converter={StaticResource BoolToVisibility}}">
         <TextBlock Text="{Binding ReviewWarning}" Foreground="{StaticResource Brush.Warning}" TextWrapping="Wrap" />
       </Border>

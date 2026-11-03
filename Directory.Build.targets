@@ -1,0 +1,8 @@
+<Project>
+  <!-- Loaded after the .NET SDK has added its implicit usings. In Directory.Build.props this removal does
+       nothing, because the props file is read before the SDK adds them (found in the Phase 11 review). -->
+  <ItemGroup>
+    <!-- SafeClean never uses the network; don't import networking types implicitly. -->
+    <Using Remove="System.Net.Http" />
+  </ItemGroup>
+</Project>

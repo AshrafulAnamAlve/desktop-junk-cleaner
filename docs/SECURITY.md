@@ -7,7 +7,8 @@ Status: **Policy defined (Phase 0); guardrails in place (Phase 1); policy rules 
 in `SafeClean.Core` (Phase 2); read-only scanner implemented (Phase 3); Dry Run preview screen (Phase 4);
 handle-based cleanup engine implemented and tested on synthetic sandbox files only (Phase 5); cleanup
 test gate passed (Phase 6, 2026-10-17); cleanup connected to the Junk Cleaner screen behind Real mode
-and a confirmation dialog (Phase 7, 2026-10-17).
+and a confirmation dialog (Phase 7, 2026-10-17); stricter-only settings, exclusions, log controls and cleanup
+history (Phase 10, 2026-10-28); security review and failure simulation (Phase 11, 2026-11-02; see `TESTING.md`).
 Real deletion now happens only when the user switches Real mode on, selects files, presses the red
 delete button and confirms — and the cleanup service re-checks every file first.**
 This document is updated whenever behaviour changes. Values marked *(initial)* may be tuned later,
@@ -25,7 +26,7 @@ but only with a documented reason and matching tests.
 | No automatic cleanup on first launch or in the background | Cleanup runs only from an explicit user confirmation dialog. There are no timers, schedulers or startup tasks. |
 | Never runs as administrator by default | App manifest requests `asInvoker`. If the app is started elevated anyway, **cleanup is disabled** (scanning still works). |
 | Never weakens Windows security | No code touches Defender, UAC, services, registry, ACLs, ownership or security settings. |
-| No network access | No networking APIs are used; `System.Net.Http` is not even imported implicitly. `ForbiddenApiTests` fails if any networking API is introduced. |
+| No network access | No networking APIs are used; `System.Net.Http` is not even imported implicitly (`ArchitectureTests.NoProject_ImportsNetworkingTypesImplicitly`). `ForbiddenApiTests` fails if a networking API appears in the source, and `CompiledAssemblyTests` fails if the compiled program references a networking library or makes a Windows call that hasn't been reviewed. |
 
 ## 2. Approved cleanup root (version 1)
 
@@ -175,7 +176,8 @@ reported as cleaned.
   access denied → *skipped (access denied)*, anything else → *failed*. Bytes are added only after the
   disposition succeeded **and** the handle is closed.
 - **One file at a time.** Cancellation is checked between files and never throws; files not reached are
-  listed as "not attempted". An unexpected error stops the cleanup instead of carrying on. The report
+  listed as "not attempted". Progress is reported only every 50 files, because each report queues work ahead of
+  mouse clicks on the UI thread: reporting per file delayed a Cancel click by about 4,000 files. An unexpected error stops the cleanup instead of carrying on. The report
   lists every selected ID exactly once, and a Dry Run report can never contain a deletion.
 - **Dry Run** re-inspects each file through the scanner's read-only handle and applies the same D4
   comparison; nothing is opened exclusively or changed.
@@ -242,10 +244,12 @@ creating links in Temp, a misconfigured `TEMP` variable, race conditions, accide
 | T13 | Accidental click | Dry Run default; Real-mode switch off at every start and after every cleanup; red delete button shown only in Real mode, with no keyboard shortcut; confirmation dialog whose default button is Cancel (Enter, Esc and closing all cancel — checked end to end); no "don't ask again". |
 | T14 | Privacy leak | No network code (enforced by test); logs store root-relative paths and no file contents. |
 | T15 | Monitoring changes system state | Monitoring uses read-only APIs only; no kill, trim, standby-list or virtual-memory APIs (enforced by test). |
-| T16 | Crash during cleanup | Each file is deleted independently; partial results are reported; errors are logged, not fatal. |
+| T16 | Crash during cleanup | Each file is deleted independently; partial results are reported; errors are logged, not fatal. Closing the window stops the cleanup before the next file and shows its report first. |
 | T17 | Malicious or compromised dependency | Only Microsoft and xUnit packages; versions pinned centrally; lock files; NuGet vulnerability audit fails the build. |
 | T18 | File name disguised with hidden or right-to-left characters | Names shown with such characters revealed; the real extension still decides "Needs review". |
 | T19 | Something else changes the Temp folder (Windows Storage Sense, installers) | Scans are snapshots; cleanup revalidates every file (§5); unexpected changes are investigated, not assumed. |
+| T20 | The user's exclusions are lost or misread (corrupt or hand-edited settings) | Unreadable, invalid or unknown settings pause cleanup and old-log deletion; replacing them needs a Yes and keeps a copy; a valid value can't be lowered by saving (§13). |
+| T21 | A test run reaches real data | Sandbox mode exists only in Debug builds and keeps its settings, history and logs beside the sandbox (§12). |
 
 ## 8. Performance monitoring safety
 
@@ -288,6 +292,19 @@ controls services. Values Windows won't give are shown as unknown ("n/a", "measu
 - The 8.3 short-name alias test and the encrypted-file (EFS) test can't run on this PC (short names are off
   on the test drive; EFS would create an encryption certificate and isn't available on Windows Home). Both
   cases are refused by checks that are tested in other ways (OS-reported final path; attribute allow-list).
+- Log redaction replaces the exact user-profile path. A path written another way (for example an 8.3 short form
+  inside an error message) would not be replaced, and the audit log contains Temp-relative file names, which can
+  themselves contain personal words. Logs stay on this PC, in the user's own folder.
+- Deleting a file also removes any alternate data streams attached to it (such as the "downloaded from the
+  internet" mark). "Space freed" counts the main contents only, so it can slightly under-report.
+- Elevation is detected by membership of the active Administrators group. An elevated process whose token isn't in
+  that group wouldn't be detected; its deletions are still limited by every other rule in this document.
+- If two copies of SafeClean run at once, each keeps the settings it loaded at its start. Each file is still
+  re-checked before deletion, so the second copy can't delete what the first already removed or changed.
+- If SafeClean is killed in the middle of a cleanup (Task Manager, power cut), no report or history entry is written
+  for that run. Files already deleted stay deleted, the rest are untouched, and the audit log can miss at most the one
+  file being deleted at that moment.
+- A scan stops at 250,000 entries and says so on screen; files beyond the limit aren't listed and can't be selected.
 
 ## 11. Deliberately unsupported in version 1
 
@@ -311,7 +328,9 @@ checked end to end in sandbox mode):
 6. The cleanup service then applies every check in §5 again, file by file.
 
 The view model sends only **candidate IDs** of the current scan and `CleanupMode.Real`; it never decides
-what may be deleted. After the cleanup the scan results are closed (a new scan is needed) and the report
+what may be deleted. Cleanup can start **only** from the Junk Cleaner screen: the Dashboard's quick action
+starts a read-only scan, and red (destructive) buttons exist only on the Junk Cleaner and its dialog
+(`ArchitectureTests.RedDangerButtons_AppearOnlyOnTheJunkCleanerScreen`, `DashboardViewModelTests`). After the cleanup the scan results are closed (a new scan is needed) and the report
 shows exactly what the service returned; "space freed" comes only from files actually deleted.
 
 **Debug-only sandbox mode** (for trying cleanup by hand on synthetic files):
@@ -325,4 +344,61 @@ shows exactly what the service returned; "space freed" comes only from files act
 - All root rules still apply (fixed NTFS drive, no links, not protected…) except R5: the folder is compared
   with itself instead of `%LOCALAPPDATA%\Temp`.
 - An orange "SANDBOX MODE" banner names the folder on every page, and the confirmation dialog repeats it.
+- A sandbox run keeps its settings, history and logs in a folder beside the sandbox (`<sandbox>.appdata\SafeClean`), so
+  it can never read or change the real ones, and "Delete old logs" can reach only synthetic log files. (Found in the
+  Phase 11 review: until then a sandbox run used the real files.)
 - `ManualSandboxSetup` (an opt-in test) creates such a folder of synthetic files under `<repository>\.sandbox\`.
+
+## 13. Settings, exclusions, SafeClean's own logs and history (Phase 10)
+
+**Settings can make SafeClean stricter, never looser.** Stored in `%LOCALAPPDATA%\SafeClean\settings.json`:
+
+| Setting | Allowed values | Effect |
+|---|---|---|
+| Minimum file age | 7 (default) to 365 days | Files changed more recently are kept. Below 7 is rejected. |
+| Exclusions | Up to 100 entries | Matching files are listed as *Skipped (Excluded)* and never deleted. |
+| Log level | Normal / warnings and errors / errors only | Less detail in the log; **the cleanup audit trail (one line per file, D7) is always written.** |
+| Log retention | 7 to 90 days | How old SafeClean's own logs must be before "Delete old logs" may remove them. |
+
+There is **no setting** for Real mode, cleanup locations or protected folders.
+
+- **Exclusions** are written relative to the Temp folder (a folder or file, e.g. `Installers\Old`) or as file-name
+  patterns (`*.log`, `~*.tmp`; only `*` and `?`, no regular expressions). Full paths, `..`, `.`, streams, device names,
+  forward slashes and patterns containing folders are rejected with a reason. Exclusions only add skips, so a parsing
+  mistake can only make SafeClean clean *less*.
+- **Scanning and cleanup use the same settings** (`CandidatePolicyContext.ForSettings`). Cleanup reads them again at
+  the start: an exclusion added after a scan is honoured; a removed one doesn't matter, because files excluded at scan
+  time were never selectable.
+- **Validation before saving:** invalid settings are never written. Saving is **atomic** (a complete temporary copy
+  replaces `settings.json`); `UserSettingsStore` is the only source file allowed to move, copy or replace a file, and
+  only its own settings file.
+- **Saving can't lower a value by accident:** a valid saved value that isn't one of the preset choices (say 45 days) stays
+  on offer, so changing something else and saving keeps it.
+- **Unreadable or invalid saved settings** (corrupt, hand-edited below the minimum, a full path as exclusion, a name
+  SafeClean doesn't know such as a mistyped `"exclusion"`): safe defaults are used **and cleanup is refused**
+  (`CleanupRefusal.SettingsUnreadable`) until valid settings are saved, because exclusions the user relies on might be
+  missing. Real mode can't be switched on, and old logs aren't offered or deleted, because the retention the user chose
+  is unknown. A temporary problem (say a lock by antivirus) goes away by restarting SafeClean.
+- **Replacing unreadable settings is a deliberate step:** Save asks first (the default answer is *No*, which keeps cleanup
+  paused and the file as it was) and keeps a copy of the old file as `settings.json.unreadable`.
+
+**SafeClean's own old logs** (`ILogMaintenance`) — the only deletion added in this phase:
+
+- **Never automatic.** Only when the user presses "Delete old SafeClean logs…" in Settings and answers *Yes*
+  (the default answer is *No*).
+- **No new deletion code:** the log folder goes through the same root rules (R2–R7, compared with itself), the same
+  read-only scan and candidate rules (minimum age = retention days), and the same `CleanupService` and handle-based
+  engine as Temp cleanup — so elevation, re-checking and the exclusive handle all apply.
+- Narrowed further: the folder must be SafeClean's own (path ends in `\SafeClean\Logs`); only files **directly** in it,
+  named **exactly** `safeclean-YYYYMMDD.log` (lower case, real date), older than the retention by **both** their
+  timestamps and the date in the name. The name rule is applied when finding **and again** just before deleting.
+
+**Cleanup history** (`%LOCALAPPDATA%\SafeClean\history.jsonl`): one line per real cleanup with date, what was cleaned,
+counts, bytes freed, duration and any refusal. The entry type has **no field for file names or paths**. Unreadable
+lines are skipped and counted. "Clear history" (after a Yes/No question) **empties** the file; nothing is deleted.
+
+The "Open log folder" button from the plan was replaced by **Copy path**, so SafeClean never launches another program.
+
+**If the log file can't be written** (Phase 11), SafeClean keeps working and shows a notice on every page saying the
+session isn't being recorded, so the on-screen report is the only record of a cleanup. It checks at startup, whatever the
+log level, and again on every write.

@@ -332,6 +332,25 @@ public sealed class CleanupServiceTests : IDisposable
         Assert.True(File.Exists(c));
     }
 
+    [Fact]
+    public async Task Progress_IsReportedFirstLastAndEveryFewFiles_SoItCantDelayTheCancelButton()
+    {
+        const int Files = (CleanupService.ProgressInterval * 2) + 7;
+        for (var i = 0; i < Files; i++)
+        {
+            _sandbox.CreateFile($@"root\file{i:000}.tmp");
+        }
+
+        var session = await ScanAsync();
+        var seen = new List<int>();
+        var progress = new SyncProgress<CleanupProgress>(p => seen.Add(p.Processed));
+
+        var report = await CleanAsync(session, session.Candidates.Select(c => c.Id).ToList(), progress: progress);
+
+        Assert.Equal(Files, report.DeletedCount);
+        Assert.Equal([1, CleanupService.ProgressInterval, CleanupService.ProgressInterval * 2, Files], seen);
+    }
+
     // ---- Files that changed after the scan ----
 
     [Fact]

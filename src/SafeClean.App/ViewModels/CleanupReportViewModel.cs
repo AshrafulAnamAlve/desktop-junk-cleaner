@@ -86,6 +86,26 @@ public sealed class CleanupReportViewModel
 
     public IReadOnlyList<string> Notes { get; }
 
+    /// <summary>
+    /// The drive's free-space change measured before and after, shown separately from "space freed"
+    /// because other programs may have written or deleted files at the same time. Empty when unknown.
+    /// </summary>
+    public string DriveChangeText { get; internal set; } = string.Empty;
+
+    public bool HasDriveChange => DriveChangeText.Length > 0;
+
+    internal static string DescribeDriveChange(string? drive, long? freeBefore, long? freeAfter)
+    {
+        if (drive is null || freeBefore is not { } before || freeAfter is not { } after)
+        {
+            return string.Empty;
+        }
+
+        var change = after - before;
+        var amount = change == 0 ? "no change" : (change > 0 ? "+" : "−") + DisplayText.FormatBytes(Math.Abs(change));
+        return $"Drive {drive.TrimEnd('\\')} free space change: {amount} (measured before and after; may include other programs' activity).";
+    }
+
     /// <summary>The cleanup service itself failed, so it is unknown which files were deleted.</summary>
     public static CleanupReportViewModel ForUnexpectedError() => new(
         "The cleanup stopped because of an unexpected error",

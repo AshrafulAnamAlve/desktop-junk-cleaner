@@ -21,9 +21,9 @@ Detailed plan for each phase: [`docs/phases/`](phases/README.md) (one file per p
 | 6 | Cleanup test gate: races, replacement, locks, partial failures, byte accounting | Done (2026-10-17) — passed |
 | 7 | Connect cleanup to UI behind Real mode + confirmation + result report | Done (2026-10-17) — **real deletion enabled** |
 | 8 | Read-only RAM / CPU / disk / process monitoring services + tests | Done (2026-10-17) |
-| 9 | Dashboard and Performance screens on real data; UI polish and accessibility | Not started |
-| 10 | Settings, restrict-only exclusions, logging controls, cleanup history | Not started |
-| 11 | Security review, regression, failure simulation, manual verification | Not started |
+| 9 | Dashboard and Performance screens on real data; UI polish and accessibility | Done (2026-10-27) |
+| 10 | Settings, restrict-only exclusions, logging controls, cleanup history | Done (2026-10-31) |
+| 11 | Security review, regression, failure simulation, manual verification | In progress: 3 manual checks left for the owner |
 | 12 | Publish self-contained build with free tools; compatibility notes | Not started |
 
 ---
@@ -98,16 +98,27 @@ Detailed plan for each phase: [`docs/phases/`](phases/README.md) (one file per p
 - [x] 6 more forbidden-API patterns (priority, affinity, memory limits, suspending programs, services, file cache)
 - [x] Verified: 0 warnings; 608 passed, 7 skipped; readings match Windows' own figures (CPU within 2–3 points when sampled side by side)
 
-## Phase 9 – Dashboard and polish
-- [ ] Dashboard cards on live data; Performance screen
-- [ ] Contrast check, keyboard navigation, resizing
+## Phase 9 – Dashboard and polish ✅ (2026-10-27)
+- [x] Dashboard cards on live data (junk card only from real scans / real cleanup reports); Performance screen with charts, drives, sortable read-only program list
+- [x] Refresh only while a page is visible and the window isn't minimised
+- [x] Contrast table (34 pairs pass WCAG), keyboard walkthrough, focus ring confirmed, accessibility name audit (0 unnamed)
+- [x] Resizing: window fits small screens (fixed a cut-off window on 1366×768); cards adapt; more room for the file list
+- [x] Verified: 0 warnings (Debug and Release); 687 passed, 7 skipped
 
-## Phase 10 – Settings and history
-- [ ] Settings (age threshold can only be made *stricter*), restrict-only exclusions
-- [ ] Logging controls, cleanup history
+## Phase 10 – Settings and history ✅ (2026-10-31)
+- [x] Settings that can only make SafeClean stricter (age 7–365 days, exclusions); validated, saved atomically
+- [x] Scanning and cleanup use the same settings; unreadable settings pause cleanup
+- [x] Log level (audit trail always kept), copy log path, delete SafeClean's own old logs on request (same safe pipeline)
+- [x] Cleanup history (counts only, no file names); clear = empty the file
+- [x] Verified: 0 warnings; 796 passed, 7 skipped; mutation check caught 10/10 planted bugs (one after an added test);
+  Settings and History pages checked in the app without saving anything
 
-## Phase 11 – Security review and verification
-- [ ] Full regression, failure simulation, manual checklist, final security review
+## Phase 11 – Security review and verification (in progress)
+- [x] Full regression in Debug and Release; race gate repeated 50 times; dependency audit; Release binaries checked
+- [x] Threat walkthrough (T1–T21: code and tests); code review and manual security review; 16 real problems fixed
+- [x] Failure simulation on synthetic files, including 100,000 files, cancel, close and kill mid-cleanup
+- [x] Verified: 0 warnings; Debug 850 passed, Release 845 passed, 0 failed; mutation check caught 21/21 planted bugs
+- [~] Manual checklist: 10 of 13 done; run as administrator, display scaling and Narrator need the owner
 
 ## Phase 12 – Publishing
 - [ ] Self-contained `win-x64` publish with free tooling; compatibility and limitations documented

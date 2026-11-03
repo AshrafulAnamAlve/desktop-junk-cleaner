@@ -104,14 +104,19 @@
         <RowDefinition Height="*" />
       </Grid.RowDefinitions>
 
-      <StackPanel Margin="40,30,40,22">
+      <StackPanel Margin="40,22,40,16">
         <!-- Debug builds only: impossible to miss when SafeClean works on a test folder instead of Temp -->
-        <Border Background="{StaticResource Brush.Warning.Soft}" BorderBrush="{StaticResource Brush.Warning}" BorderThickness="1"
-                CornerRadius="8" Padding="14,8" Margin="0,0,0,16"
+        <Border Style="{StaticResource Notice.Warning}" Margin="0,0,0,12"
                 Visibility="{Binding IsSandbox, Converter={StaticResource BoolToVisibility}}">
           <!-- Accessibility names go on the TextBlock: a Border isn't visible to screen readers or UI Automation. -->
           <TextBlock Text="{Binding SandboxBannerText}" Foreground="{StaticResource Brush.Warning}" FontWeight="Bold" TextWrapping="Wrap"
                      AutomationProperties.AutomationId="SandboxBanner" />
+        </Border>
+        <!-- The log folder can't be written: the app keeps working, but the user should know nothing is being recorded -->
+        <Border Style="{StaticResource Notice.Warning}" Margin="0,0,0,12"
+                Visibility="{Binding IsLoggingOff, Converter={StaticResource BoolToVisibility}}">
+          <TextBlock Text="{Binding LoggingOffText}" Foreground="{StaticResource Brush.Warning}" FontWeight="SemiBold" TextWrapping="Wrap"
+                     AutomationProperties.AutomationId="LoggingOffBanner" />
         </Border>
         <TextBlock Text="{Binding CurrentPage.Title}" Style="{StaticResource Text.PageTitle}" />
         <TextBlock Text="{Binding CurrentPage.Subtitle}" Style="{StaticResource Text.PageSubtitle}" />

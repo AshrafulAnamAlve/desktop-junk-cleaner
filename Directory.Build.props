@@ -25,9 +25,4 @@
     <Version>0.1.0</Version>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
-
-  <ItemGroup>
-    <!-- SafeClean never uses the network; don't import networking types implicitly. -->
-    <Using Remove="System.Net.Http" />
-  </ItemGroup>
 </Project>

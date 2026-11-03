@@ -2,12 +2,11 @@
 
 A safety-first Windows PC cleaner built with C#, WPF and .NET 10. Free, local-only, no cloud services.
 
-> **Current status: Phase 8 done** — the Junk Cleaner screen scans your Temp folder (read-only), shows
+> **Current status: Phase 9 done** — the Junk Cleaner screen scans your Temp folder (read-only), shows
 > every file with its status and reason, lets you tick files or categories, shows a **Dry Run preview**,
 > and — only if you switch **Real cleanup mode** on and confirm — deletes the selected files through the
-> safety-tested engine. Read-only RAM, CPU, disk and program-memory monitoring is built and tested; the
-> Dashboard and Performance screens start showing it in Phase 9. 608 automated tests pass (7 skipped with
-> documented reasons).
+> safety-tested engine. The **Dashboard** and **Performance** screens show live, read-only memory,
+> processor, drive and program-memory figures. 687 automated tests pass (7 skipped with documented reasons).
 
 ## What it will do (version 1)
 
@@ -48,6 +47,19 @@ The app runs with normal user rights (never as administrator) and always starts 
    the rules are skipped and kept. The report shows deleted, skipped and failed files, and space freed
    from deleted files only. Deleted files do **not** go to the Recycle Bin.
 
+## Settings (stricter only)
+
+**Settings** lets you make SafeClean *more* careful — never less: a longer minimum file age (7 days is the lowest),
+and **exclusions** for things to always keep, written relative to your Temp folder (for example `Installers\Old`) or
+as a file-name pattern (`*.log`). Changes apply from the next scan. If the saved settings file can't be read,
+SafeClean uses safe defaults and **pauses cleanup**. Restarting may fix it; otherwise saving your settings replaces the
+file, after asking you first, and keeps a copy of the old one as `settings.json.unreadable`.
+
+**Logs and history:** you can choose how much SafeClean logs (each deleted file is always logged), copy the log
+folder path, and — only when you press the button and answer *Yes* — delete SafeClean's **own** log files older than
+the retention you chose. Nothing is deleted automatically. The **History** page lists past cleanups (counts and sizes
+only, never file names). If the log file can't be written, SafeClean keeps working and shows a notice saying so.
+
 **Trying it safely first (Debug builds only):** create a folder of synthetic files and point SafeClean at it.
 
 ```powershell
@@ -56,7 +68,8 @@ dotnet run --project src/SafeClean.App -- --sandbox-root "<the folder printed by
 ```
 
 An orange **SANDBOX MODE** banner then shows the folder being used. SafeClean refuses to start if the folder
-has no `.safeclean-sandbox` marker file, and this option doesn't exist in Release builds.
+has no `.safeclean-sandbox` marker file, and this option doesn't exist in Release builds. A sandbox run keeps its own
+settings, history and logs in a folder beside the sandbox, so your real ones aren't touched.
 
 ## Documentation
 

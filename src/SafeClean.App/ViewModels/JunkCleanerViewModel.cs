@@ -1,3 +1,4 @@
+using System.IO;
 using Microsoft.Extensions.Logging;
 using SafeClean.App.Mvvm;
 using SafeClean.App.Presentation;
@@ -29,6 +30,9 @@ public sealed class JunkCleanerViewModel : PageViewModel
     private readonly ITempScanner _scanner;
     private readonly ICleanupService _cleanup;
     private readonly ICleanupConfirmation _confirmation;
+    private readonly ISystemMonitor _monitor;
+    private readonly ISettingsService _settings;
+    private readonly ICleanupHistory _history;
     private readonly TimeProvider _time;
     private readonly ILogger<JunkCleanerViewModel> _logger;
     private CancellationTokenSource? _scanCancellation;
@@ -57,13 +61,19 @@ public sealed class JunkCleanerViewModel : PageViewModel
         ICleanupService cleanup,
         IElevationProbe elevation,
         ICleanupConfirmation confirmation,
+        ISystemMonitor monitor,
+        ISettingsService settings,
+        ICleanupHistory history,
         TimeProvider time,
         AppInfo appInfo,
         ILogger<JunkCleanerViewModel> logger)
     {
+        _settings = settings;
+        _history = history;
         _scanner = scanner;
         _cleanup = cleanup;
         _confirmation = confirmation;
+        _monitor = monitor;
         _time = time;
         _logger = logger;
         IsElevated = elevation.IsElevated;
@@ -75,16 +85,25 @@ public sealed class JunkCleanerViewModel : PageViewModel
         ClearSelectionCommand = new RelayCommand(ClearSelection, () => SelectedCount > 0);
         PreviewCommand = new RelayCommand(ShowPreview, () => SelectedCount > 0);
         DismissPreviewCommand = new RelayCommand(() => Preview = null, () => Preview is not null);
+        CloseDetailsCommand = new RelayCommand(() => FocusedItem = null, () => FocusedItem is not null);
+        EscapeCommand = new RelayCommand(OnEscape);
         DeleteCommand = new AsyncRelayCommand(DeleteSelectedAsync, () => CanDelete);
         CancelCleanupCommand = new RelayCommand(() => _cleanupCancellation?.Cancel(), () => IsCleaning);
+
+        _settings.Changed += (_, _) =>
+        {
+            OnPropertyChanged(nameof(CanUseRealMode));
+            OnPropertyChanged(nameof(RealModeHint));
+            OnPropertyChanged(nameof(AgeRuleText));
+        };
     }
 
     public override string Title => "Junk Cleaner";
 
     public override string Subtitle => "Find temporary files that are safe to remove.";
 
-    public string AgeRuleText { get; } =
-        $"Created and last changed more than {SafetyDefaults.MinimumFileAge.TotalDays:0} days ago.";
+    /// <summary>The age rule in force, which the user's settings can raise above the default.</summary>
+    public string AgeRuleText => $"Created and last changed more than {_settings.Current.MinimumFileAgeDays} days ago.";
 
     public AsyncRelayCommand ScanCommand { get; }
 
@@ -97,6 +116,12 @@ public sealed class JunkCleanerViewModel : PageViewModel
     public RelayCommand PreviewCommand { get; }
 
     public RelayCommand DismissPreviewCommand { get; }
+
+    /// <summary>Hides the details panel, giving the file list more room.</summary>
+    public RelayCommand CloseDetailsCommand { get; }
+
+    /// <summary>Esc: closes the Dry Run preview if it is open, otherwise the details panel.</summary>
+    public RelayCommand EscapeCommand { get; }
 
     /// <summary>Opens the confirmation dialog, then (only if confirmed) runs a real cleanup of the selection.</summary>
     public AsyncRelayCommand DeleteCommand { get; }
@@ -113,11 +138,16 @@ public sealed class JunkCleanerViewModel : PageViewModel
 
     public bool IsSandbox => SandboxRoot is not null;
 
-    /// <summary>Real mode can't be switched on while SafeClean runs as administrator (rule R8).</summary>
-    public bool CanUseRealMode => !IsElevated && !IsCleaning;
+    /// <summary>
+    /// Real mode can't be switched on while SafeClean runs as administrator (rule R8), while cleaning, or while the
+    /// saved settings can't be read (the user's exclusions might be missing).
+    /// </summary>
+    public bool CanUseRealMode => !IsElevated && !IsCleaning && _settings.LoadProblem is null;
 
     public string RealModeHint => IsElevated
         ? "Cleanup is disabled while SafeClean runs as administrator. Start it normally to clean."
+        : _settings.LoadProblem is not null
+            ? "Cleanup is paused: your saved settings couldn't be read. Open Settings and save them again."
         : IsRealMode
             ? "On: after you confirm, the selected files are permanently deleted — not moved to the Recycle Bin."
             : "Off: preview only. Switch on to delete the selected files after confirming.";
@@ -260,9 +290,16 @@ public sealed class JunkCleanerViewModel : PageViewModel
                 OnPropertyChanged(nameof(SkippedCountText));
                 OnPropertyChanged(nameof(ScanDetailsText));
                 OnPropertyChanged(nameof(EstimatedRecoverableText));
+                OnPropertyChanged(nameof(WasCutShort));
             }
         }
     }
+
+    /// <summary>The scan reached its safety limit, so the results don't cover the whole folder.</summary>
+    public bool WasCutShort => Session?.WasTruncated == true;
+
+    public string CutShortText =>
+        $"This scan stopped at its limit of {SafetyDefaults.MaxScanEntries:N0} entries, so it doesn't cover the whole folder. Files beyond the limit aren't listed and can't be selected.";
 
     // ---- Summary tiles ----------------------------------------------------------------------------
 
@@ -352,6 +389,7 @@ public sealed class JunkCleanerViewModel : PageViewModel
             if (SetProperty(ref _focusedItem, value))
             {
                 OnPropertyChanged(nameof(HasFocusedItem));
+                CloseDetailsCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -376,7 +414,7 @@ public sealed class JunkCleanerViewModel : PageViewModel
     }
 
     public string SelectionText => SelectedCount == 0
-        ? "Nothing selected. Tick files or a category to preview a cleanup."
+        ? "Nothing selected"
         : $"{DisplayText.Count(SelectedCount, "file", "files")} selected · about {DisplayText.FormatBytes(SelectedBytes)} (estimate)";
 
     /// <summary>The IDs a future cleanup would receive — never paths.</summary>
@@ -463,7 +501,9 @@ public sealed class JunkCleanerViewModel : PageViewModel
             }
 
             LoadSession(result.Session);
-            StatusText = $"Scan complete: {result.Session.Summary.TotalCount:N0} entries. Read-only — nothing was changed.";
+            StatusText = result.Session.WasTruncated
+                ? $"Scan stopped at its limit: {result.Session.Summary.TotalCount:N0} entries. Read-only — nothing was changed."
+                : $"Scan complete: {result.Session.Summary.TotalCount:N0} entries. Read-only — nothing was changed.";
             State = ScanState.Completed;
             OnPropertyChanged(nameof(VisibleCountText));
             OnPropertyChanged(nameof(NoVisibleItems));
@@ -536,10 +576,14 @@ public sealed class JunkCleanerViewModel : PageViewModel
             }
         });
 
+        var drive = Path.GetPathRoot(session.Root.CanonicalPath);
+        var freeBefore = FreeSpace(drive);
+
         CleanupReportViewModel report;
         try
         {
             report = new CleanupReportViewModel(await _cleanup.CleanAsync(session, ids, CleanupMode.Real, progress, cancellation.Token));
+            report.DriveChangeText = CleanupReportViewModel.DescribeDriveChange(drive, freeBefore, FreeSpace(drive));
         }
         catch (Exception ex)
         {
@@ -551,6 +595,19 @@ public sealed class JunkCleanerViewModel : PageViewModel
             _cleanupCancellation = null;
         }
 
+        if (report.Report is { } finished)
+        {
+            try
+            {
+                _history.Append(CleanupHistoryEntry.From(finished, CleanupHistoryEntry.TempFolder));
+            }
+            catch (Exception ex)
+            {
+                // History is a convenience: a failure here must never cost the user the report of what was deleted.
+                _logger.LogWarning(ex, "The cleanup could not be added to the history.");
+            }
+        }
+
         // The scan results no longer describe the disk: close them. Cleaning again needs a new scan and Real mode again.
         ClearResults();
         Report = report;
@@ -559,10 +616,45 @@ public sealed class JunkCleanerViewModel : PageViewModel
         IsRealMode = false;
     }
 
+    private void OnEscape()
+    {
+        if (Preview is not null)
+        {
+            Preview = null;
+        }
+        else
+        {
+            FocusedItem = null;
+        }
+    }
+
+    /// <summary>
+    /// Free space on a drive right now (for the report's separate "drive change" line), or null. Only a side note,
+    /// so a failure here must never get in the way of a cleanup or replace its real report.
+    /// </summary>
+    private long? FreeSpace(string? drive)
+    {
+        if (drive is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return _monitor.GetDrives().FirstOrDefault(d => string.Equals(d.Name, drive, StringComparison.OrdinalIgnoreCase))?.FreeBytes;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Free space could not be read.");
+            return null;
+        }
+    }
+
     private void LoadSession(ScanSession session)
     {
+        var rootLabel = IsSandbox ? "Sandbox folder" : "Temp folder";
         _allItems = session.Candidates
-            .Select(c => new CandidateItemViewModel(c, OnItemSelectionChanged))
+            .Select(c => new CandidateItemViewModel(c, OnItemSelectionChanged, rootLabel))
             .OrderByDescending(i => i.Size)
             .ThenBy(i => i.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();

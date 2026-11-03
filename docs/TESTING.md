@@ -162,6 +162,135 @@ characters in search patterns don't match — keep scripts ASCII.
 Compare CPU readings **side by side in time** (for example with `Get-Counter '\Processor(_Total)\% Processor Time'`
 running at the same moment): a single sample taken a few seconds apart can differ hugely during a load burst.
 
+## Screen tests and accessibility (implemented in Phase 9)
+
+| Test class | What it covers |
+|---|---|
+| `DashboardViewModelTests` | "—"/"Measuring…" before readings and when Windows gives none; real figures; first processor reading "measuring"; refresh only while visible and not while minimised; junk card from real scans / real reports only; Safety card follows Real mode; "Scan" button opens the Junk Cleaner and scans, never cleans |
+| `PerformanceViewModelTests` | Nothing runs before the page is shown; live figures; program list loaded once; history of 60 readings without invented values; timers (incl. optional 5 s) only while visible; sorting by every column; "n/a" values; **no command that acts on programs** |
+| `LayoutAndFormatTests` | Percent rounding/clamping and "—"; chart points; card columns 4/2/1; window fit (incl. screens smaller than the minimum); optional rows on short windows; drive-change wording |
+| `JunkCleanerPolishTests` | Close details, Esc order, "Temp folder"/"Sandbox folder" labels, spoken row names, drive change shown separately from space freed |
+| `ContrastTests` | WCAG contrast of 34 colour pairs read from `Theme.xaml` (table below) |
+| `ArchitectureTests` (Core) | Red danger buttons only on the Junk Cleaner and its dialog |
+
+**Contrast (WCAG 2, computed from `Theme.xaml` on 2026-10-27).** Text needs 4.5:1; UI parts 3:1.
+
+| Pair | Ratio | | Pair | Ratio |
+|---|---|---|---|---|
+| Text.Primary on Window / Card / Sidebar | 15.55 / 14.04 / 14.90 | | OnAccent on Accent / Hover / Pressed | 7.02 / 8.52 / 5.57 |
+| Text.Primary on Hover / Selected | 12.78 / 11.83 | | OnDanger on Danger / Hover / Pressed | 6.21 / 7.53 / 4.89 |
+| Text.Secondary on Window / Card / Sidebar | 8.75 / 7.90 / 8.39 | | Accent.SoftText on Accent.Soft | 7.59 |
+| Text.Muted on Window / Card / Sidebar / Hover | 6.26 / 5.65 / 6.00 / 5.15 | | Danger on Danger.Soft / Card / Window | 4.88 / 5.45 / 6.03 |
+| Warning on Warning.Soft / Card / Window | 7.33 / 8.71 / 9.65 | | Success on Success.Soft / Card | 6.16 / 7.65 |
+| Accent on Card / Window (bars, charts) | 6.50 / 7.19 | | Focus ring on Window / Card / Sidebar | 9.96 / 8.99 / 9.54 |
+| Success on Window (chart) | 8.48 | | Danger on Sidebar (badge border) | 5.78 |
+| Disabled text on disabled background | 3.81 (exempt) | | | |
+
+**Keyboard walkthrough (2026-10-27,** keys posted only to SafeClean's window): Tab order sidebar → Scan →
+Categories → All/Safe/Review/Skipped → Search → file list; ↓ moves rows and switches pages in the sidebar;
+Space ticks a file; Esc closes the details; Shift+Tab goes back. Screenshots confirmed the focus ring on a
+filter button and on a file row.
+
+## Settings, logs and history tests (implemented in Phase 10)
+
+| Test class | What it covers |
+|---|---|
+| `SettingsPolicyTests` (Core) | Age below 7 / above 365 rejected; retention 7–90; unknown log level; 14 malformed or outside-Temp exclusions rejected, full paths with a helpful reason (full paths, `..`, rooted, network, `/`, streams, device names, trailing dot, patterns with folders, bad characters); valid folders and patterns; duplicates; one bad entry blocks the save; 100-entry limit; wildcard matching; settings → rules (excluded folders without prefix trap, patterns anywhere, longer age, defaults); unreadable settings refuse cleanup; history entry from a report |
+| `SettingsAndHistoryStoreTests` | No file → defaults (nothing created); save/reload exactly, change event, no temporary file left; invalid settings never written; 6 kinds of unreadable or hand-edited files → defaults + "cleanup paused"; saving clears the problem; history round trip newest first with no paths or file names; corrupt lines skipped and counted; clear empties without deleting; log level hides details but never the cleanup audit trail |
+| `LogMaintenanceTests` | Synthetic `SafeClean\Logs` folder with 11 look-alikes: only the two genuinely old `safeclean-YYYYMMDD.log` files are found and deleted; everything else byte-for-byte unchanged; longer retention finds fewer; another folder refused; elevated → refused; a plan stretched to include `notes.txt` can't delete it; retention outside 7–90 refused; exact-name rule |
+| `SettingsInScanAndCleanupTests` | Scan applies excluded folders, patterns and a longer age; an exclusion added after the scan is honoured by the cleanup; unreadable settings refuse the cleanup |
+| `SettingsAndHistoryViewModelTests` (App) | Saved values shown; no age option below 7; bad exclusions refused with a reason; add/remove/save; load problem shown until saved; **no setting can start Real mode**; old-log deletion: nothing old → no question, *No* → nothing deleted, *Yes* → deleted with the saved retention and recorded, folder problem reported; history newest first, refusals, unreadable lines, clear only after *Yes*; Junk Cleaner paused by unreadable settings and records each cleanup |
+
+## Security review (Phase 11)
+
+### Threat model walkthrough
+
+Every threat in `SECURITY.md` §7: the code that stops it and the tests that prove it.
+
+| Threat | Stopped by | Proved by |
+|---|---|---|
+| T1 Wrong file through a path bug | `PathValidator`, `WindowsPath.IsStrictlyInside`, `CandidatePolicy.Evaluate`, `CleanupPolicy.CheckCurrent` | `PathValidatorTests.RejectsUnsafePaths`, `CandidatePolicyTests.SiblingFolderWithSamePrefixIsOutsideRoot`, `CleanupPolicyTests.ForgedEligibleDecision_ForAPersonalFile_IsCaughtAsProtected`, `CleanupGateTests.Gate02_CandidateOutsideTheRoot_IsRefused_AndSurvives`, `Gate21_NamesThatLookIdentical_AreNeverConfused` |
+| T2 Link inside Temp | `TempScanner.HandleEntry` (links never entered), `FileInspector` (opens links as themselves), rule C3 | `TempScannerTests.JunctionIsListedAsSkipped_AndItsTargetIsNeverScanned`, `Gate05_JunctionToOutside_IsNeverFollowed`, `CandidatePolicyTests.ReparsePointIsNeverACandidate` (file symlink tests skip here: no Developer Mode) |
+| T3 Folder swapped for a junction | `HandleBasedFileDeleter.TryDelete` + `CheckCurrent` (final path through the open handle), `CleanupPolicy.CheckRoot` | `CleanupServiceTests.ParentFolderSwappedForAJunction_IsSkipped_AndTheLookAlikeOutsideSurvives`, `RootSwappedForAJunction_IsRefused_AndTheTargetIsUntouched`, `Gate23_ConcurrentChanges_NeverLeadToAWrongDeletion_RepeatedFiftyTimes` |
+| T4 File replaced or changed | `CleanupPolicy.CheckCurrent` (identity, size, dates, attributes) under the exclusive handle | `FileModifiedAfterTheScan_IsSkippedAsChanged`, `FileReplacedAfterTheScan_IsSkipped_AndTheReplacementSurvives`, `CleanupPolicyTests.AnyDifferenceFromTheScan_IsSkippedAsChanged`, `Gate23…` |
+| T5 File in use | `HandleBasedFileDeleter` (share mode none), `AttemptResult.FromOpenError` | `Gate10_FileOpenInAnotherProgram_IsSkipped_AndSurvives`, `FileInUse_IsSkipped_AndSurvives`; `ForbiddenApiTests` and `CompiledAssemblyTests` (no process killing) |
+| T6 Hard link | Rule C6 in `CandidatePolicy`, `CheckCurrent` | `Gate07_HardLinkedFile_IsSkipped_AndBothNamesSurvive`, `HardLinkAddedAfterTheScan_IsSkipped_AndBothNamesSurvive`, `HardLinkedOrDeletePendingFileIsSkipped` |
+| T7 `TEMP` points somewhere dangerous | `RootPolicy.Evaluate` (R5, R6), `TempRootResolver` | `RootResolutionTests.TempRedirectedToAnotherFolderIsRefused`, `RootPolicyTests.DangerousTempLocationsAreRefused`; failure simulation below |
+| T8 Malformed paths | `PathValidator`; targets come only from enumeration | `RejectsUnsafePaths`, `Gate03_TraversalAndSpecialPathForms_AreRejected_BeforeAnythingIsOpened`, `UnknownIds_AndSkippedEntries_AreNeverActedOn` |
+| T9 Run as administrator | `app.manifest` (`asInvoker`), `WindowsElevationProbe`, `CleanupPolicy.CheckRequest` | `Elevated_IsRefused_InEveryMode`, `Elevated_RefusesTheWholeRequest`, `WhenElevated_RealModeCannotBeSwitchedOn`, `WhenElevated_DeletionIsRefused_AndNothingChanges` (the real elevated launch is on the manual checklist) |
+| T10 Cloud or offline placeholders | Attribute allow-list (C3, C4) | `EachDisallowedAttributeCausesSkip`, `Gate16_FileWithAProtectiveAttribute_IsNeverActedOn_AndKeepsIt` |
+| T11 Read-only, hidden, system files | Attribute allow-list; attributes never changed | `FilesWithProtectiveAttributesAreSkipped_AndAttributesUnchanged`, `FileMadeReadOnlyAfterTheScan_IsSkipped_AndTheAttributeIsLeftAlone`, `Gate16_AttributeAddedAfterTheScan_IsCaught_AndKept` |
+| T12 UI sends wrong items | `CleanupService.Attempt`, `CleanupPolicy.CheckRecorded`; the page sends IDs only | `UnknownIds_AndSkippedEntries_AreNeverActedOn`, `SkippedEntryCanNeverBeSelected`, `ForgedEligibleCandidate_ForAFileOutsideTheRoot_IsRefused`, `Confirming_CallsTheServiceOnce_WithExactlyTheSelectedIds_InRealMode`, `App_ReachesCleanupOnlyThroughTheServiceInterface` |
+| T13 Accidental click | `JunkCleanerViewModel.CanDelete`, `ConfirmCleanupWindow` (Cancel is default and focused) | `RealModeIsOffAtStart_SoDeletingIsImpossible`, `CancellingTheDialog_NeverCallsTheCleanupService`, `AfterCleanup_ResultsAreClosed_RealModeIsOff_AndANewScanIsNeeded`, `RedDangerButtons_AppearOnlyOnTheJunkCleanerScreen`; Enter, Esc and closing checked end to end below |
+| T14 Privacy | `FileLoggerProvider.Redact`, `CleanupService.LogEntry`, `CleanupHistoryEntry` (no file-name field); no network code | `Log_RedactsUserProfilePath_CaseInsensitively`, `AuditLog_UsesPathsRelativeToTheTempFolderOnly`, `History_RoundTrips_NewestFirst_AndStoresNoFileNames`, `NoForbiddenLibraryIsReferenced`, `NoProject_ImportsNetworkingTypesImplicitly` |
+| T15 Monitoring changes the system | `SystemMonitor` (only reads) | `ForbiddenApiTests`, `ThePage_HasNoCommandThatActsOnPrograms`, `NoForbiddenCallIsCompiledIn`, `NativeCalls_AreExactlyTheReviewedOnes` |
+| T16 Crash during cleanup | Files deleted independently; `CleanupService` stops and still reports; `MainViewModel.CanCloseNow` | `Gate17_ProgressCallbackThatThrows_StillReturnsTheFullReport`, `MixedBatch_ReportsEachFileCorrectly_AndCountsOnlyDeletedBytes`, `IfTheServiceFails_TheReportDoesNotClaimAnything`, `ClosingDuringACleanup_StopsItBeforeTheNextFile_AndKeepsTheWindowOpenForTheReport`; process kill below |
+| T17 Compromised dependency | `Directory.Packages.props`, lock files, NuGet audit in the build | `dotnet list package --vulnerable` (results log), `CoreProjectFile_HasNoProjectOrPackageReferences`, `NoForbiddenLibraryIsReferenced` |
+| T18 Disguised file names | `DisplayText.Reveal`; the real extension decides "Needs review" | `RevealMakesDisguisingCharactersVisible`, `DisguisedFileNameIsRevealed`, `RightToLeftOverrideTrickStillDetectsExecutable` |
+| T19 Temp changes by itself | Every file re-checked at cleanup | `FilesChangingDuringTheScanCauseNoErrors`, `FileDeletedAfterTheScan_IsSkippedAsMissing`, `Gate23…` |
+| T20 Exclusions lost or misread | `UserSettingsStore`, `CleanupPolicy.CheckRequest`, `LogMaintenance`, `SettingsViewModel` | `UnknownNames_PauseCleanup_InsteadOfSilentlyDroppingThem`, `UnreadableSettings_RefuseTheWholeCleanup`, `SavingOverAnUnusableFile_KeepsACopyOfIt`, `UnreadableSettings_SavingAsksFirst_AndAnsweringNoKeepsCleanupPaused`, `ASavedValueThatIsntAPreset_StaysOnOffer_AndSavingDoesNotLowerIt`, `SettingsBecomingUnreadable_AfterThePlan_RefuseTheDeletion` |
+| T21 A test run reaches real data | `#if DEBUG` guard, `DebugSandboxRootResolver`, `App.SandboxDataFiles` | `SandboxMode_ExistsOnlyInDebugBuilds`, `FolderWithoutMarker_IsRefused_NeverReplacedByTheRealTempFolder`; Release binaries searched (results log); real settings and history hashes unchanged after every sandbox run |
+
+### Review findings
+
+The `/code-review` skill ran at level *high* on the working tree (10 findings). The first attempt at the `/security-review`
+skill failed: it starts with `git diff origin/HEAD...`, and the local `origin/HEAD` pointer wasn't set. (An earlier version of
+this note wrongly said the repository had no remote.) The whole deletion path was also read line by line by hand (5 more
+findings below), which covers more than a review of recent changes would. Two more problems came from the failure simulation
+itself.
+
+| # | Source | Finding | Outcome |
+|---|---|---|---|
+| 1 | Code review | Saving lowered a valid age or retention that wasn't a preset (45 days became 7) | Fixed: the value stays on offer |
+| 2 | Code review | Saving over unreadable settings erased the user's exclusions and lifted the pause without warning | Fixed: asks first (default No), keeps `settings.json.unreadable` |
+| 3 | Code review | A failure reading free space could leave the page stuck on "Cleaning" or replace the real report with "unexpected error" | Fixed: never affects the cleanup; `SystemMonitor.GetDrives` also tolerates it |
+| 4 | Code review | "Delete old logs" ignored the cleanup pause and used a fallback retention | Fixed in `LogMaintenance` itself, so the cleanup service refuses too |
+| 5 | Code review | The Remove button "stays disabled" (`RelayCommand<T>`) | **Not a bug**: `IsEnabled` is true in the running app. No change |
+| 6 | Code review | Sandbox mode used the real settings, history and logs, so "Delete old logs" could delete real logs | Fixed: Debug sandbox runs keep them beside the sandbox |
+| 7 | Code review | "Saved" stayed on screen after changing a choice | Fixed: says "Not saved yet." |
+| 8 | Code review | One history line with an unknown refusal value broke the whole History page | Fixed: skipped and counted like other bad lines |
+| 9 | Code review | Failures reading the program list or old logs left the status stuck; auto-refresh would repeat an error box every 5 s | Fixed: said on the page and logged |
+| 10 | Code review | The Junk Cleaner stated "7 days" even with a longer saved age | Fixed: shows the age in force |
+| 11 | Manual review | `Using Remove="System.Net.Http"` did nothing, because `Directory.Build.props` is read before the SDK adds the using, so `SECURITY.md`'s claim was false | Fixed: moved to `Directory.Build.targets`, with a test reading what the build generated |
+| 12 | Manual review | Nothing told the user when logging had turned off | Fixed: notice on every page, checked at startup |
+| 13 | Manual review | A scan stopped at 250,000 entries never said so | Fixed: notice and status line |
+| 14 | Manual review | A mistyped setting name silently dropped it (and the exclusions in it) while cleanup carried on | Fixed: an unknown name makes the file unusable, which pauses cleanup |
+| 15 | Manual review | Closing the window mid-cleanup cut it off with no report or history; the banned-API list had gaps (attributes, permissions, `ProcessStartInfo`, `File.Copy`, more network APIs) | Fixed: closing stops the cleanup and shows the report; list extended, plus `CompiledAssemblyTests`, which reads the compiled program (native calls, libraries, framework calls) |
+| 16 | Failure simulation | **Cancel was slow on big cleanups**: progress per file queued work ahead of mouse clicks, so about 4,000 more files were deleted after the click | Fixed: progress every 50 files; 324 more in the same test |
+| 17 | Keyboard test | On Settings, Tab reached Add before its text box and Copy path before its field | Fixed |
+
+`ForbiddenApiTests` review: the allow-list names only `HandleBasedFileDeleter.cs` (deletion) and `UserSettingsStore.cs` (its
+own settings file). The plan's "Explorer launch" no longer exists: Phase 10 replaced it with **Copy path**.
+
+### Failure simulation (2026-11-02)
+
+Run through UI Automation on synthetic files. Sandbox runs used the Debug build's `--sandbox-root`; each destructive click
+was preceded by checks of the command line, the SANDBOX banner, the exact entry count and the dialog's sandbox line, and a
+mismatch aborted with Cancel (this stopped two runs safely, both because of mistakes in the test script).
+
+| Scenario | Result | How it was run |
+|---|---|---|
+| Log folder unwritable | ✅ App runs; notice on every page; scanning works | Sandbox: a file placed where the log folder should be. The real log folder wasn't touched, so this used the sandbox's log folder, not `%LOCALAPPDATA%` |
+| Settings and history corrupt | ✅ Defaults, Real mode paused with the reason; *No* leaves the file as it was; *Yes* keeps `settings.json.unreadable` and lifts the pause. History shows the good entry and counts 2 bad lines | Sandbox |
+| `TEMP` set to another folder | ✅ Refused with the reason; no delete button; the file in that folder untouched | **Release build**, `TEMP` and `TMP` set for that process only |
+| Run as administrator | ⏳ Tests cover the refusal; the real launch needs the owner to approve Windows' prompt | Manual checklist |
+| 100,000 synthetic files | ✅ Exactly 100,003 entries counted; 41 s; 262 MB; slowest UI answer 1.9 s; Windows never reported "not responding" | Sandbox |
+| Entry limit | ✅ Stops at the limit and says so | `ScanAtItsEntryLimit_StopsThere_AndSaysItWasCutShort` with a limit of 10 (not with 250,000 real files) |
+| Deep nesting and access-denied folders | ✅ Each listed as one skipped entry; the scan continues | Sandbox: 20 levels, and a folder with a deny rule |
+| Cancel mid-scan | ✅ Stopped within 0.8 s; no partial results; nothing changed on disk | Sandbox |
+| Cancel mid-cleanup | ✅ Report matched the disk exactly (4,074 deleted, 4,074 gone); needs-review and recent files and the marker untouched; audit log had 4,074 lines; history one line with the same count and no names | Sandbox |
+| Window closed mid-cleanup | ✅ Stayed open and stopped; report matched the disk (1,507); recorded in history | Sandbox |
+| Process killed mid-cleanup | ✅ 1,294 files gone, 1,293 audit lines (only the file in flight is missing); other files untouched; a new scan sees exactly what's on disk; no history entry, as documented | Sandbox |
+| Disk nearly full (optional) | ⏭️ Not run: a small test disk (VHD) needs administrator rights. A failed log write is covered by the unwritable-folder case | — |
+
+The real Temp folder was only ever scanned read-only, by the Release build, with no code for the Real-mode switch or the
+delete button in that script.
+
+### Sign-off summary
+
+**Not signed off yet.** Everything that can be checked automatically passed (results log below). Phase 11 stays open until the
+owner finishes the unticked items in the manual checklist.
+
 ## Gate before enabling real deletion (Phase 6)
 
 **Status: PASSED on 2026-10-17.** The item-by-item results table (test names, actual results, and the
@@ -244,15 +373,47 @@ in `SECURITY.md` §6; tests confirm the implementation follows it.
 | 2026-10-17 | 8 | `dotnet test --solution SafeClean.sln -c Debug` | ✅ 615 total: 608 passed, 0 failed, 7 skipped (Core 382; Infrastructure 160 + 7; App 66) — new tests passed first time |
 | 2026-10-17 | 8 | Readings vs Windows (CIM, `Get-Process`) | ✅ RAM total 11.90 GiB both, available 4.38 vs 4.43 GiB; drives C–F identical; same top 5 programs within ~1% |
 | 2026-10-17 | 8 | CPU vs `\Processor(_Total)\% Processor Time` | ❌ first single samples 86.4% vs 12% (taken at different moments in a load burst) → ✅ side by side for 7 s: within 2–3 points each second |
+| 2026-10-27 | 9 | `dotnet build` Debug (no-incremental) and Release | ✅ 0 warnings, 0 errors |
+| 2026-10-27 | 9 | `dotnet test --solution SafeClean.sln -c Debug` (first runs) | ❌ compile error (test helper named `Main` = entry point) → fixed; ❌ 1 failure caught a real wording bug ("drive C::") → fixed |
+| 2026-10-27 | 9 | `dotnet test --solution SafeClean.sln -c Debug` | ✅ 694 total: 687 passed, 0 failed, 7 skipped (Core 383; Infrastructure 160 + 7; App 144) |
+| 2026-10-27 | 9 | Screenshots at default and minimum size (UI Automation, sandbox mode for the Junk Cleaner) | ✅ Window now fits this 1366×768 screen (1200×738; before 760 px, cut off). File list rows: default 4 → 5, minimum 0 → 2 |
+| 2026-10-27 | 9 | Accessibility name audit, keyboard walkthrough, focus-ring screenshots | ✅ 0 unnamed controls (2 scrollbar buttons fixed); logical Tab order; focus ring visible |
+| 2026-10-28 | 10 | Mutation check, first attempt | ⚠️ cut off when the session ended; planted bug S4 was left in `SettingsPolicy.cs` → found on 2026-10-31, restored from its clean copy, clean rebuild 791 passed; results discarded |
+| 2026-10-31 | 10 | Mutation check, full re-run (10 bugs, progress logged step by step) | ✅ 9/10 caught; S4 survived (second layer still refused full paths, but with a vaguer message) → added `FullPaths_AreRefused_WithAHelpfulReason`, re-planted: caught. Final run on restored sources 0 failing |
+| 2026-10-31 | 10 | `dotnet build` Debug (no-incremental) and Release | ✅ 0 warnings, 0 errors |
+| 2026-10-31 | 10 | `dotnet test` (Core, Infrastructure, App) | ✅ 803 total: 796 passed, 0 failed, 7 skipped (Core 441; Infrastructure 194 + 7; App 161) |
+| 2026-10-31 | 10 | Settings and History pages in the app (UI Automation, nothing saved) | ✅ Bad exclusions refused with reasons; add + undo on screen only; `settings.json` / `history.jsonl` not created; 0 unnamed controls (1 fixed) |
+| 2026-11-02 | 11 | Baseline before any change: builds (no-incremental) and tests | ✅ 0 warnings; Debug 803 total: 796 passed, 0 failed, 7 skipped; Release 797 total: 791 passed, 0 failed, 6 skipped |
+| 2026-11-02 | 11 | `/security-review` skill, first attempt | ❌ Failed to start: the local `origin/HEAD` pointer wasn't set. A line-by-line manual review of the deletion path was done instead (5 findings) |
+| 2026-11-02 | 11 | `/code-review` skill, level high | ✅ Ran: 10 findings, each checked; 9 real and fixed, 1 not a bug (the button was enabled in the running app) |
+| 2026-11-02 | 11 | Race gate (`Gate23`) repeated 50 times, then the Infrastructure suite 5 times | ✅ 50/50 and 5/5 passed (each gate run: 50 rounds × 20 files); no flakiness; no sandbox folders left behind. Run before the progress change, which doesn't touch the checks the gate exercises |
+| 2026-11-02 | 11 | 100,000-file sandbox, first runs | ❌ Two runs stopped safely before deleting (test script used the wrong button name, and hit a locked log file). One run found the real Cancel delay: about 4,000 more files deleted after the click → fixed; 324 in the same test |
+| 2026-11-02 | 11 | Mutation check (21 planted bugs, restored and verified by SHA-256, progress logged step by step) | ✅ 21/21 caught, including a `File.Move` through an alias and a new native call, which the source-text checks can't see; final runs on restored sources 0 failing |
+| 2026-11-02 | 11 | Failure simulation and dialog keys on the final build | ✅ 48 checks and the dialog checks passed (table above). Mid-cleanup cancel, close and kill, and the screen-vs-disk check, weren't repeated after the last small changes (Settings Tab order, a test-only entry limit), which don't touch cleanup; a read-only scan of the large sandbox was repeated (86,043 entries, exact) |
+| 2026-11-02 | 11 | Screen vs disk: read-only scan of the real Temp folder (Release) | ✅ 5 of 5 files: exact size, modified and created dates matched; file names not printed |
+| 2026-11-02 | 11 | Network | ✅ No sockets owned by SafeClean in 18 to 26 checks across a whole run including a real scan; `System.Net.Http` and `System.Net.Sockets` not loaded; compiled program references no network library. (`ws2_32.dll`, a Windows library, is loaded in the process, but no socket was opened.) This polls open sockets; it isn't a packet capture |
+| 2026-11-02 | 11 | Real log files, read-only | ✅ About 100 lines in 6 files: 0 hold the user name, the profile path or a `C:\Users` path |
+| 2026-11-02 | 11 | Dialog keys, minimum size, keyboard | ✅ Enter, Esc and closing all cancel; Cancel focused; all 5 pages fine at 900×600 (long pages scroll); Tab order on Settings fixed; focus ring visible |
+| 2026-11-02 | 11 | `dotnet list package --vulnerable --include-transitive` and `--deprecated` | ✅ None in any project |
+| 2026-11-02 | 11 | Release binaries searched for sandbox code | ✅ 0 hits for 6 markers in all 3 assemblies (Debug: present, so the search works) |
+| 2026-11-02 | 11 | Final `dotnet build` Debug and Release (no-incremental) | ✅ 0 warnings, 0 errors |
+| 2026-11-02 | 11 | Final `dotnet test` Debug | ✅ 857 total: 850 passed, 0 failed, 7 skipped (Core 455; Infrastructure 209 + 7; App 186). Skips: 3 opt-in manual tests, 3 file-symlink tests (no Developer Mode), 1 short-name test (off on this drive) |
+| 2026-11-02 | 11 | Final `dotnet test` Release | ✅ 851 total: 845 passed, 0 failed, 6 skipped (the Debug-only sandbox tests don't exist in Release, so the total is 6 lower and there's one fewer opt-in test); no sandbox folders left behind |
 
-## Manual test checklist (to be completed in Phase 11)
+## Manual test checklist (Phase 11)
 
-- [ ] Fresh launch shows Dry Run mode and performs no scan or cleanup automatically.
-- [ ] Keyboard only: Tab/arrow keys reach every navigation item and button, and the blue focus ring is visible on each.
-- [ ] Window resizes down to minimum size without clipped controls.
-- [ ] Launch elevated ("Run as administrator"): cleanup controls disabled with explanation.
-- [ ] Set `TEMP` to another folder for a test session: app refuses cleanup and explains.
-- [ ] Scan results match a manual look at a few files (size, date).
-- [ ] Cleanup report numbers match deleted files; skipped files still exist.
-- [ ] Log file contains no file contents and no full user paths.
-- [ ] No network traffic (e.g. checked with Windows Resource Monitor).
+Ticked items were checked by UI Automation on 2026-11-02 (details in the results log). Unticked items need the owner.
+
+- [x] Fresh launch shows Dry Run mode and performs no scan or cleanup automatically. *(Release build)*
+- [x] Keyboard only: Tab/arrow keys reach every navigation item and button, and the blue focus ring is visible on each. *(Tab order on Settings this phase, other pages in Phase 9; focus ring seen in screenshots of a sample of controls)*
+- [x] Window resizes down to minimum size without clipped controls. *(All 5 pages at 900×600; long pages scroll. At that size, with the extra Debug banner, the file list shows 1 row)*
+- [ ] **Owner:** Launch elevated ("Run as administrator"): cleanup controls disabled with explanation.
+- [x] Set `TEMP` to another folder for a test session: app refuses cleanup and explains. *(Release build)*
+- [x] Scan results match a manual look at a few files (size, date). *(5 real files, read-only)*
+- [x] Cleanup report numbers match deleted files; skipped files still exist. *(Sandbox)*
+- [x] Log file contains no file contents and no full user paths. *(Real logs, read-only)*
+- [x] No network traffic. *(Open sockets polled, not Resource Monitor; see the results log. The owner can also look in Resource Monitor if they want a second opinion)*
+- [ ] **Owner:** At 125 % and 150 % display scaling (the owner's own setting), every page fits and nothing is cut off (Phase 9).
+- [ ] **Owner:** Windows Narrator reads the sidebar, the Scan / Preview / Real-mode / Delete controls and file rows sensibly (Phase 9).
+- [x] Settings: change the minimum age and add an exclusion, save, close and reopen SafeClean — the values are still there; a scan lists matching files as *Skipped (Excluded)* (Phase 10). *(Sandbox, so the real settings file wasn't created)*
+- [x] Settings → "Delete old SafeClean logs…": answering *No* deletes nothing; with no old logs it says so and asks nothing (Phase 10). *(Sandbox, with synthetic logs)*

@@ -239,6 +239,49 @@ public sealed class TempScannerTests : IDisposable
     }
 
     [Fact]
+    public async Task ScanAtItsEntryLimit_StopsThere_AndSaysItWasCutShort()
+    {
+        for (var i = 0; i < 15; i++)
+        {
+            _sandbox.CreateFile($@"root\many\file{i:D2}.tmp");
+        }
+
+        var snapshot = _sandbox.Snapshot();
+        var scanner = new TempScanner(new SandboxRootResolver(_root), new FileInspector(), TimeProvider.System, NullLogger<TempScanner>.Instance) { MaxEntries = 10 };
+
+        var result = await scanner.ScanAsync(null, Token);
+
+        Assert.True(result.Session!.WasTruncated);
+        Assert.Equal(10, result.Session.Candidates.Count);
+        Assert.Equal(snapshot, _sandbox.Snapshot());
+    }
+
+    [Fact]
+    public async Task ScanBelowItsEntryLimit_IsNotCutShort()
+    {
+        for (var i = 0; i < 10; i++)
+        {
+            _sandbox.CreateFile($@"root\many\file{i:D2}.tmp");
+        }
+
+        var scanner = new TempScanner(new SandboxRootResolver(_root), new FileInspector(), TimeProvider.System, NullLogger<TempScanner>.Instance) { MaxEntries = 10 };
+
+        var result = await scanner.ScanAsync(null, Token);
+
+        Assert.False(result.Session!.WasTruncated);
+        Assert.Equal(10, result.Session.Candidates.Count);
+    }
+
+    [Fact]
+    public void TheRealEntryLimitIs250000()
+    {
+        var scanner = new TempScanner(new SandboxRootResolver(_root), new FileInspector(), TimeProvider.System, NullLogger<TempScanner>.Instance);
+
+        Assert.Equal(SafetyDefaults.MaxScanEntries, scanner.MaxEntries);
+        Assert.Equal(250_000, SafetyDefaults.MaxScanEntries);
+    }
+
+    [Fact]
     public async Task CancellationStopsTheScanPromptly()
     {
         for (var i = 0; i < 1200; i++)

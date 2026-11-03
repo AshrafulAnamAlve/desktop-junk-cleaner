@@ -5,9 +5,10 @@
              xmlns:conv="clr-namespace:SafeClean.App.Converters">
   <UserControl.Resources>
     <conv:EnumToBooleanConverter x:Key="EnumToBool" />
+    <conv:AtLeastToVisibilityConverter x:Key="AtLeast" />
   </UserControl.Resources>
   <UserControl.InputBindings>
-    <KeyBinding Key="Escape" Command="{Binding DismissPreviewCommand}" />
+    <KeyBinding Key="Escape" Command="{Binding EscapeCommand}" />
   </UserControl.InputBindings>
 
   <Grid Margin="40,0,40,24">
@@ -52,15 +53,30 @@
           </TextBlock>
         </Border>
         <StackPanel VerticalAlignment="Center" Margin="16,0,0,0">
-          <TextBlock Text="{Binding StatusText}" Style="{StaticResource Text.Body}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+          <TextBlock Text="{Binding StatusText}" ToolTip="{Binding StatusText}" Style="{StaticResource Text.Body}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
           <ProgressBar IsIndeterminate="{Binding IsScanning}" Margin="0,6,0,0" MaxWidth="320" HorizontalAlignment="Left" Width="320"
                        Visibility="{Binding IsScanning, Converter={StaticResource BoolToVisibility}}" AutomationProperties.Name="Scan in progress" />
+          <TextBlock Text="{Binding CutShortText}" Foreground="{StaticResource Brush.Warning}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,6,0,0"
+                     Visibility="{Binding WasCutShort, Converter={StaticResource BoolToVisibility}}" AutomationProperties.AutomationId="ScanCutShortNotice" />
         </StackPanel>
       </DockPanel>
     </Border>
 
     <!-- Summary tiles -->
-    <UniformGrid Grid.Row="1" Rows="1" Margin="0,12,-12,0" Visibility="{Binding HasResults, Converter={StaticResource BoolToVisibility}}">
+    <!-- Summary tiles. On short windows they step aside so the file list keeps its room; the same counts
+         stay visible in the Categories list ("All files"). -->
+    <Grid Grid.Row="1" Visibility="{Binding HasResults, Converter={StaticResource BoolToVisibility}}">
+    <UniformGrid Rows="1" Margin="0,12,-12,0" AutomationProperties.AutomationId="SummaryTiles">
+      <UniformGrid.Style>
+        <Style TargetType="UniformGrid">
+          <Style.Triggers>
+            <DataTrigger Value="Collapsed"
+                         Binding="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource AtLeast}, ConverterParameter=560}">
+              <Setter Property="Visibility" Value="Collapsed" />
+            </DataTrigger>
+          </Style.Triggers>
+        </Style>
+      </UniformGrid.Style>
       <Border Style="{StaticResource Card}" Padding="14,8" Margin="0,0,12,0">
         <StackPanel>
           <TextBlock Text="Safe to remove" Style="{StaticResource Text.Caption}" Foreground="{StaticResource Brush.Success}" />
@@ -90,6 +106,7 @@
         </StackPanel>
       </Border>
     </UniformGrid>
+    </Grid>
 
     <!-- Results -->
     <Grid Grid.Row="2" Margin="0,12,0,0" Visibility="{Binding HasResults, Converter={StaticResource BoolToVisibility}}">
@@ -118,7 +135,7 @@
                             AutomationProperties.Name="{Binding Title, StringFormat='Select safe files in {0}'}"
                             ToolTip="Select every safe file in this category" />
                   <StackPanel Grid.Column="1">
-                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
                     <TextBlock Text="{Binding CountsText}" Style="{StaticResource Text.Caption}" Margin="0,2,0,0" />
                     <TextBlock Text="{Binding SizeText}" Style="{StaticResource Text.Caption}" />
                   </StackPanel>
@@ -220,11 +237,15 @@
         </Border>
 
         <!-- Details of the highlighted file -->
-        <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0,12,0,0" Padding="16,10" MaxHeight="150"
+        <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0,10,0,0" Padding="14,8" MaxHeight="128"
                 Visibility="{Binding HasFocusedItem, Converter={StaticResource BoolToVisibility}}">
           <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False" DataContext="{Binding FocusedItem}">
             <StackPanel>
               <DockPanel>
+                <!-- Closing the details gives the list its room back (Esc does the same) -->
+                <Button DockPanel.Dock="Right" Style="{StaticResource Button.Header}" Content="&#xE711;" FontFamily="{StaticResource Font.Icons}"
+                        Command="{Binding DataContext.CloseDetailsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        Margin="8,0,0,0" ToolTip="Close details (Esc)" AutomationProperties.Name="Close details" />
                 <Border DockPanel.Dock="Right" Style="{StaticResource StatusBadge}" Margin="12,0,0,0">
                   <TextBlock Text="{Binding StatusText}" FontSize="12" />
                 </Border>
@@ -331,6 +352,8 @@
                      AutomationProperties.AutomationId="ReportHeadline" />
           <TextBlock Text="{Binding SpaceFreedText}" Foreground="{StaticResource Brush.Success}" FontWeight="SemiBold"
                      TextWrapping="Wrap" Margin="0,6,0,0" AutomationProperties.AutomationId="ReportSpaceFreed" />
+          <TextBlock Text="{Binding DriveChangeText}" Style="{StaticResource Text.Caption}" Margin="0,4,0,0"
+                     Visibility="{Binding HasDriveChange, Converter={StaticResource BoolToVisibility}}" AutomationProperties.AutomationId="ReportDriveChange" />
           <TextBlock Style="{StaticResource Text.Body}" Margin="0,10,0,0" AutomationProperties.AutomationId="ReportCounts">
             <Run Text="{Binding DeletedText, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding SkippedText, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding FailedText, Mode=OneWay}" />
           </TextBlock>
@@ -425,7 +448,8 @@
               <Button Style="{StaticResource Button.Secondary}" Command="{Binding ClearSelectionCommand}" Content="Clear" Margin="8,0,0,0" />
               <Button Style="{StaticResource Button.Primary}" Command="{Binding PreviewCommand}" Content="_Preview cleanup (Dry Run)" Margin="8,0,0,0" />
             </StackPanel>
-            <TextBlock Text="{Binding SelectionText}" VerticalAlignment="Center" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,12,0" />
+            <TextBlock Text="{Binding SelectionText}" VerticalAlignment="Center" FontWeight="SemiBold" Margin="0,0,12,0"
+                       TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip="{Binding SelectionText}" />
           </DockPanel>
           <Border BorderBrush="{StaticResource Brush.Border}" BorderThickness="0,1,0,0" Margin="0,10,0,0" Padding="0,10,0,0">
             <DockPanel>

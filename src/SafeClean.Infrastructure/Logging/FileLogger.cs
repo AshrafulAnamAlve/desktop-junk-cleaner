@@ -7,7 +7,9 @@ internal sealed class FileLogger(FileLoggerProvider provider, string category) :
     public IDisposable? BeginScope<TState>(TState state)
         where TState : notnull => null;
 
-    public bool IsEnabled(LogLevel logLevel) => logLevel != LogLevel.None;
+    public bool IsEnabled(LogLevel logLevel) =>
+        logLevel != LogLevel.None
+        && (logLevel >= provider.MinimumLevel || (logLevel >= LogLevel.Information && FileLoggerProvider.IsAuditCategory(category)));
 
     public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
     {

@@ -86,6 +86,12 @@ public static class DisplayText
         }
     }
 
+    /// <summary>"63%", or "—" when the value is unknown (never a made-up 0%).</summary>
+    public static string FormatPercent(double? value, IFormatProvider? culture = null) =>
+        value is { } percent
+            ? string.Format(culture ?? CultureInfo.CurrentCulture, "{0:N0}%", Math.Round(Math.Clamp(percent, 0, 100), MidpointRounding.AwayFromZero))
+            : "—";
+
     /// <summary>"1 file" / "3 files".</summary>
     public static string Count(int count, string singular, string plural, IFormatProvider? culture = null) =>
         string.Format(culture ?? CultureInfo.CurrentCulture, "{0:N0} {1}", count, count == 1 ? singular : plural);

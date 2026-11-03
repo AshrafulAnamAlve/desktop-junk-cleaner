@@ -8,13 +8,15 @@ Desktop-Clean-App/              ← workspace root (the solution lives here, not
 ├─ SafeClean.sln
 ├─ global.json                  ← pins the .NET 10 SDK band
 ├─ Directory.Build.props        ← settings shared by every project
+├─ Directory.Build.targets      ← settings that must load after the .NET SDK (removes the implicit networking import)
 ├─ Directory.Packages.props     ← the single list of NuGet packages and versions
 ├─ src/
 │  ├─ SafeClean.App/            ← WPF user interface (MVVM)
 │  │  ├─ Mvvm/                  ← tiny hand-written MVVM helpers (ObservableObject, RelayCommand, AsyncRelayCommand)
 │  │  ├─ Presentation/          ← display formatting (sizes, dates, revealing disguised names)
 │  │  ├─ Converters/            ← small XAML value converters
-│  │  ├─ Services/              ← UI-side services (the cleanup confirmation dialog)
+│  │  ├─ Services/              ← UI-side services (cleanup confirmation dialog, UI timers)
+│  │  ├─ Controls/              ← small custom layout panels (AdaptiveColumnsPanel)
 │  │  ├─ ViewModels/
 │  │  ├─ Views/                 ← pages, plus ConfirmCleanupWindow
 │  │  ├─ Resources/             ← theme colours and control styles
@@ -24,14 +26,16 @@ Desktop-Clean-App/              ← workspace root (the solution lives here, not
 │  ├─ SafeClean.Core/           ← pure logic: models, interfaces, safety policies. No file access.
 │  │  ├─ Models/                ← FileFacts, FileIdentity, ApprovedRoot, decisions, reason codes
 │  │  ├─ Policies/              ← PathValidator, WindowsPath, ProtectedLocations, RootPolicy, CandidatePolicy,
-│  │  │                            DryRunPlanner, CleanupPolicy, MonitoringMath, PolicyText
-│  │  └─ Interfaces/            ← ITempRootResolver, ITempScanner, ICleanupService, ISystemMonitor, IElevationProbe
+│  │  │                            DryRunPlanner, CleanupPolicy, MonitoringMath, SettingsPolicy, WildcardPattern, PolicyText
+│  │  └─ Interfaces/            ← ITempRootResolver, ITempScanner, ICleanupService, ISystemMonitor, IElevationProbe,
+│  │                               ISettingsService, ICleanupHistory, ILogMaintenance
 │  └─ SafeClean.Infrastructure/ ← talks to Windows: scanning, cleanup, monitoring, logging
 │     ├─ Native/                ← the only place with direct Windows calls and "unsafe" code
 │     ├─ Scanning/              ← FileInspector, RootFactsReader, KnownProtectedLocations, TempRootResolver, TempScanner
 │     ├─ Cleanup/               ← HandleBasedFileDeleter (the ONLY code that can delete), CleanupService, AttemptResult
 │     │                            (Phase 5; the App reaches it only through ICleanupService since Phase 7)
 │     ├─ Monitoring/            ← SystemMonitor: read-only RAM, CPU, drive and process figures (Phase 8)
+│     ├─ Settings/              ← UserSettingsStore (settings.json, atomic save), JsonLinesCleanupHistory (Phase 10)
 │     ├─ Logging/
 │     └─ Environment/           ← administrator detection
 ├─ tests/
@@ -103,7 +107,21 @@ Real mode: `HandleBasedFileDeleter` opens the file exclusively, reads its facts 
 it; Dry Run: read-only re-inspection with the same D4 check → `CleanupReport` with one entry per ID and
 bytes freed from deletions only; one audit log line per file with its Temp-relative path.
 
+**Settings (Phase 10):** `UserSettingsStore` (one instance) serves the Settings page (`ISettingsService`) and the
+scanner and cleanup service (`IUserSettingsProvider`). Both build their rules with
+`CandidatePolicyContext.ForSettings`, so a cleanup always applies the same (or newer, stricter) settings as its scan.
+Unreadable saved settings make `CleanupService` refuse (`SettingsUnreadable`).
+
+**SafeClean's own old logs (Phase 10):** Settings → `ILogMaintenance` (`LogMaintenance`) → `LogFolderRootResolver`
+(the log folder through `RootPolicy`) → a `TempScanner` read-only scan with minimum age = retention → exact-name
+filter → the same `CleanupService` and handle-based engine. No new deletion code.
+
 ## Threading
 
 Scanning, cleanup and monitoring run off the UI thread with `async`/`await` and `CancellationToken`.
 View models update bound properties on the UI thread.
+
+**Live data (Phase 9):** the Dashboard and Performance pages refresh with UI timers (`IUiTimerFactory`,
+`DispatcherTimer` in the app, a manual timer in tests). `MainViewModel` calls `OnShown`/`OnHidden` on pages as the
+user navigates and when the window is minimised or restored, so only the visible page ever refreshes. Quick
+readings (memory, processor, drives) run on the UI thread; the program list is read on a background thread.

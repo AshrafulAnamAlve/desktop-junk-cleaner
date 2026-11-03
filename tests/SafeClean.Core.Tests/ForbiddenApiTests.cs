@@ -12,11 +12,17 @@ public sealed class ForbiddenApiTests
     /// <summary>The single file allowed to delete (Phase 5). See docs/SECURITY.md §5.</summary>
     private static readonly string DeletionEngine = Path.Combine("src", "SafeClean.Infrastructure", "Cleanup", "HandleBasedFileDeleter.cs");
 
+    /// <summary>The single file allowed to move or copy a file: only its own settings file (Phases 10 and 11). See docs/SECURITY.md §13.</summary>
+    private static readonly string SettingsStore = Path.Combine("src", "SafeClean.Infrastructure", "Settings", "UserSettingsStore.cs");
+
     // Patterns only the deletion engine may use.
     private const string HandleChange = @"\bSetFileInformationByHandle\b";
     private const string Disposition = @"(?i)\bFILE_?DISPOSITION";
     private const string DeleteAccess = @"\bDELETE\b";
     private const string DeleteAccessNumber = @"(?i)\b0x0*1_?0000\b";
+
+    // Pattern only the settings store may use (to replace settings.json with a complete new copy, and keep an unusable one).
+    private const string MoveOrReplace = @"\b(File|Directory)\.(Move|Replace|Copy)\b|\bReplaceFile|\bMoveFile|\bCopyFile";
 
     private static readonly (string Pattern, string Reason)[] Forbidden =
     [
@@ -26,10 +32,17 @@ public sealed class ForbiddenApiTests
         (DeleteAccess, "the DELETE access right"),
         (DeleteAccessNumber, "the DELETE access right written as a number"),
 
-        // Other ways to delete, move or overwrite files: allowed nowhere
+        // Other ways to delete, move or overwrite files: allowed nowhere (moving: only the settings store, see Allowed)
         (@"(?i)DELETE_?ON_?CLOSE", "delete-on-close (deletes by path)"),
         (@"\b(Nt|Zw)SetInformationFile\b", "low-level file changes"),
-        (@"\b(File|Directory)\.(Move|Replace)\b|\bReplaceFile|\bMoveFile", "moving or replacing files"),
+        (MoveOrReplace, "moving, replacing or copying files"),
+        (@"\.(MoveTo|CopyTo)\s*\(", "FileInfo/DirectoryInfo moving or copying"),
+
+        // Changing what a file is or who owns it (docs/SECURITY.md "Things SafeClean never does")
+        (@"\bSetAttributes\b|\bSetFileAttributes", "changing file attributes"),
+        (@"\bSetAccessControl\b|\b(File|Directory)Security\b|\bSet(Named)?SecurityInfo\b|\bSetKernelObjectSecurity\b", "changing permissions"),
+        (@"\bTakeOwnership\b|\bSetOwner\b", "taking ownership"),
+        (@"\bFile\.(Encrypt|Decrypt)\b|\bEncryptFile\b|\bDecryptFile\b", "encrypting or decrypting files"),
 
         // Path-based or broad deletion (SafeClean must delete only through a validated handle)
         (@"\bFile\.Delete\b", "path-based file deletion"),
@@ -44,6 +57,8 @@ public sealed class ForbiddenApiTests
 
         // Shells and launching other programs
         (@"\bProcess\.Start\b", "launching processes"),
+        (@"\bProcessStartInfo\b|\bShellExecute|\bCreateProcess|\bWinExec\b", "launching processes"),
+        (@"(?i)""runas""", "asking for administrator rights"),
         // "cmd.exe", "cmd /c", Process.Start("cmd", ...) — but not the ".cmd" file extension.
         (@"(?i)(?<![.\w])cmd(\.exe)?\b\s*[""/]", "command prompt"),
         (@"(?i)\bpowershell\b", "PowerShell"),
@@ -63,15 +78,23 @@ public sealed class ForbiddenApiTests
 
         // System configuration
         (@"\bRegistry(Key)?\b", "registry access"),
+        (@"\bSetEnvironmentVariable\b", "changing environment variables"),
+        (@"(?i)\bschtasks\b|\bTaskService\b", "scheduled tasks"),
+
+        // Loading code by name, which would step around every check here and the native-call list
+        (@"\bLoadLibrary|\bGetProcAddress\b|\bAssembly\.Load", "loading code dynamically"),
 
         // Network (privacy: SafeClean never sends data anywhere)
         (@"\bHttpClient\b", "network access"),
         (@"\bWebClient\b", "network access"),
-        (@"\bWebRequest\b", "network access"),
+        (@"\b(Http|Ftp)?WebRequest\b", "network access"),
         (@"\bTcpClient\b", "network access"),
         (@"\bUdpClient\b", "network access"),
+        (@"\bTcpListener\b|\bHttpListener\b", "network access"),
         (@"\bSocket\b", "network access"),
-        (@"\bSystem\.Net\.(Http|Sockets)\b", "network access"),
+        (@"\bNetworkStream\b|\bClientWebSocket\b|\bDns\.", "network access"),
+        (@"\bSystem\.Net\b", "network access"),
+        (@"\bWinHttp|\bInternetOpen|\bWSAStartup\b|\bURLDownloadToFile", "network access"),
     ];
 
     /// <summary>Pattern → files (relative to the repository root) allowed to use it, with the reason documented there.</summary>
@@ -81,7 +104,10 @@ public sealed class ForbiddenApiTests
         [Disposition] = [DeletionEngine],
         [DeleteAccess] = [DeletionEngine],
         [DeleteAccessNumber] = [DeletionEngine],
+        [MoveOrReplace] = [SettingsStore],
     };
+
+    private static readonly string[] DeletionPatterns = [HandleChange, Disposition, DeleteAccess, DeleteAccessNumber];
 
     public static TheoryData<string, string> ForbiddenPatterns()
     {
@@ -146,6 +172,17 @@ public sealed class ForbiddenApiTests
             "using var service = new ServiceController(\"WSearch\");",
             "NtSuspendProcess(handle);",
             "SetSystemFileCacheSize(min, max, flags);",
+            "File.Copy(a, b, overwrite: true);",
+            "new FileInfo(p).MoveTo(q);",
+            "File.SetAttributes(path, FileAttributes.Normal);",
+            "fileInfo.SetAccessControl(security);",
+            "var startInfo = new ProcessStartInfo(\"notepad\");",
+            "startInfo.Verb = \"runas\";",
+            "var bytes = Dns.GetHostAddresses(name);",
+            "var request = new HttpWebRequest();",
+            "using System.Net;",
+            "NativeLibrary = LoadLibraryW(name);",
+            "Environment.SetEnvironmentVariable(\"TEMP\", path);",
         ];
 
         Assert.All(samples, sample =>
@@ -153,21 +190,27 @@ public sealed class ForbiddenApiTests
     }
 
     [Fact]
-    public void AllowList_NamesOnlyTheDeletionEngine_AndItExists()
+    public void AllowList_NamesOnlyTheDeletionEngineAndTheSettingsStore_AndTheyExist()
     {
-        var allowedFiles = Allowed.Values.SelectMany(files => files).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var allowedFiles = Allowed.Values.SelectMany(files => files).Distinct(StringComparer.OrdinalIgnoreCase).Order().ToList();
 
-        Assert.Equal([DeletionEngine], allowedFiles);
-        Assert.True(File.Exists(Path.Combine(RepositoryFiles.Root, DeletionEngine)), "The allow-listed deletion engine file is missing.");
+        Assert.Equal(new[] { DeletionEngine, SettingsStore }.Order(), allowedFiles);
+        Assert.All(allowedFiles, file => Assert.True(File.Exists(Path.Combine(RepositoryFiles.Root, file)), $"Allow-listed file missing: {file}"));
+
+        // Each file is allowed exactly what it needs and nothing else.
+        Assert.All(DeletionPatterns, pattern => Assert.Equal([DeletionEngine], Allowed[pattern]));
+        Assert.Equal([SettingsStore], Allowed[MoveOrReplace]);
     }
 
     [Fact]
-    public void DeletionEngine_IsWhereTheHandleDeletionCodeActuallyLives()
+    public void AllowedFiles_ReallyUseWhatTheyAreAllowed()
     {
-        // Proves the allowances are needed (not stale): the engine really uses each allowed pattern.
-        var source = File.ReadAllText(Path.Combine(RepositoryFiles.Root, DeletionEngine));
+        // Proves the allowances are needed (not stale).
+        var engine = File.ReadAllText(Path.Combine(RepositoryFiles.Root, DeletionEngine));
+        var settings = File.ReadAllText(Path.Combine(RepositoryFiles.Root, SettingsStore));
 
-        Assert.All(Allowed.Keys, pattern => Assert.Matches(pattern, source));
+        Assert.All(DeletionPatterns, pattern => Assert.Matches(pattern, engine));
+        Assert.Matches(MoveOrReplace, settings);
     }
 
     [Theory]

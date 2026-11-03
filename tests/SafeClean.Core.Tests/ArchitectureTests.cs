@@ -67,6 +67,26 @@ public sealed class ArchitectureTests
     }
 
     [Fact]
+    public void RedDangerButtons_AppearOnlyOnTheJunkCleanerScreen()
+    {
+        // Destructive actions stay red and only where files are cleaned: the Junk Cleaner and its confirmation dialog.
+        var allowed = new[]
+        {
+            Path.Combine("src", "SafeClean.App", "Resources", "Controls.xaml"), // where the style is defined
+            Path.Combine("src", "SafeClean.App", "Views", "JunkCleanerView.xaml"),
+            Path.Combine("src", "SafeClean.App", "Views", "ConfirmCleanupWindow.xaml"),
+        };
+
+        var users = RepositoryFiles.SourceFiles("SafeClean.App")
+            .Where(f => File.ReadAllText(f).Contains("Button.Danger", StringComparison.Ordinal))
+            .Select(RepositoryFiles.Relative)
+            .ToList();
+
+        Assert.Contains(Path.Combine("src", "SafeClean.App", "Views", "JunkCleanerView.xaml"), users);
+        Assert.All(users, file => Assert.Contains(file, allowed, StringComparer.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void SandboxMode_ExistsOnlyInDebugBuilds()
     {
         // The sandbox resolver is wrapped entirely in one #if DEBUG block.
@@ -77,7 +97,7 @@ public sealed class ArchitectureTests
         Assert.Single(resolverLines, l => l.StartsWith("#if", StringComparison.Ordinal));
 
         // Everywhere else, anything that switches sandbox mode on sits inside an #if DEBUG block.
-        var sandboxCode = new Regex(@"DebugSandboxRootResolver|--sandbox-root|ReadSandboxArgument");
+        var sandboxCode = new Regex(@"DebugSandboxRootResolver|--sandbox-root|ReadSandboxArgument|SandboxDataFiles|\.appdata");
         var offenders = new List<string>();
         var users = 0;
         foreach (var file in RepositoryFiles.SourceFiles().Where(f => !string.Equals(f, resolverFile, StringComparison.OrdinalIgnoreCase)))
@@ -114,6 +134,26 @@ public sealed class ArchitectureTests
 
         Assert.True(users > 0, "Expected the composition root to use the sandbox resolver in Debug builds.");
         Assert.True(offenders.Count == 0, "Sandbox code outside #if DEBUG:\n" + string.Join('\n', offenders));
+    }
+
+    [Fact]
+    public void NoProject_ImportsNetworkingTypesImplicitly()
+    {
+        // Reads what the build really produced. The setting once sat in Directory.Build.props, where it silently did nothing.
+#if DEBUG
+        const string Configuration = "Debug";
+#else
+        const string Configuration = "Release";
+#endif
+        var generated = new[] { "SafeClean.Core", "SafeClean.Infrastructure", "SafeClean.App" }
+            .Select(project => Path.Combine(RepositoryFiles.SourceDirectory, project, "obj", Configuration, "net10.0-windows", project + ".GlobalUsings.g.cs"))
+            .ToList();
+
+        Assert.All(generated, file =>
+        {
+            Assert.True(File.Exists(file), $"Expected the build to have generated {file}");
+            Assert.DoesNotContain("System.Net", File.ReadAllText(file), StringComparison.Ordinal);
+        });
     }
 
     [Fact]

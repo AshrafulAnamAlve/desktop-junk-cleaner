@@ -70,6 +70,7 @@ public static class PolicyText
         CleanupRefusal.SessionExpired => $"The scan is more than {SafetyDefaults.MaxScanSessionAge.TotalMinutes:0} minutes old (or the clock changed). Scan again first.",
         CleanupRefusal.RootRefused => "The Temp folder no longer passes the safety checks, so nothing was done.",
         CleanupRefusal.RootChanged => "The Temp folder isn't the same folder that was scanned, so nothing was done. Scan again.",
+        CleanupRefusal.SettingsUnreadable => "Your saved settings couldn't be read, so cleanup is paused (your exclusions might be missing). Open Settings and save them again.",
         _ => throw new ArgumentOutOfRangeException(nameof(refusal), refusal, null),
     };
 

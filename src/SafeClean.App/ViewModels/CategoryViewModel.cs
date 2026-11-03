@@ -47,6 +47,9 @@ public sealed class CategoryViewModel : ObservableObject
 
     public string SizeText => DisplayText.FormatBytes(EligibleBytes) + " safe";
 
+    /// <summary>What screen readers announce for the category row.</summary>
+    public override string ToString() => $"{Title}: {CountsText}, {SizeText}";
+
     /// <summary>The checkbox is only enabled when there is at least one safe file to select.</summary>
     public bool CanSelect => EligibleCount > 0;
 

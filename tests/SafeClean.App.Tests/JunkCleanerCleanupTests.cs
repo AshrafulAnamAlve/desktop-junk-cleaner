@@ -348,14 +348,9 @@ public sealed class JunkCleanerCleanupTests
     public void TheMainWindowBadge_FollowsTheSwitch()
     {
         var junk = Pages.JunkCleaner();
-        var main = new MainViewModel(
-            new DashboardViewModel(new FakeElevation(false)),
-            junk,
-            new PerformanceViewModel(),
-            new HistoryViewModel(),
-            new SettingsViewModel(new AppInfo("test", "logs")),
-            new FakeElevation(false),
-            new AppInfo("test", "logs"));
+        var monitor = new FakeSystemMonitor();
+        var timers = new ManualTimerFactory();
+        var main = Pages.Shell(Pages.Dashboard(monitor, junk, timers), junk, Pages.Performance(monitor, timers));
         var changed = new List<string?>();
         main.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
 

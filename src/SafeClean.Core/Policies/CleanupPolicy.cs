@@ -8,8 +8,8 @@ namespace SafeClean.Core.Policies;
 /// </summary>
 public static class CleanupPolicy
 {
-    /// <summary>Before anything else: mode, elevation (R8) and scan age. Any answer refuses the whole request.</summary>
-    public static CleanupRefusal? CheckRequest(CleanupMode mode, bool isElevated, ScanSession session, DateTimeOffset now)
+    /// <summary>Before anything else: mode, elevation (R8), settings and scan age. Any answer refuses the whole request.</summary>
+    public static CleanupRefusal? CheckRequest(CleanupMode mode, bool isElevated, ScanSession session, DateTimeOffset now, bool settingsReadable = true)
     {
         ArgumentNullException.ThrowIfNull(session);
 
@@ -21,6 +21,12 @@ public static class CleanupPolicy
         if (isElevated)
         {
             return CleanupRefusal.Elevated;
+        }
+
+        // Unreadable settings mean the user's exclusions might be missing: don't guess, don't clean.
+        if (!settingsReadable)
+        {
+            return CleanupRefusal.SettingsUnreadable;
         }
 
         // A scan "from the future" means the clock moved, so its age can't be trusted either.

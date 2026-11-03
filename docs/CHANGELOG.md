@@ -2,6 +2,81 @@
 
 ## [Unreleased]
 
+### Phase 11 — security review and verification (in progress, 2026-11-02)
+Verified: builds 0 warnings; Debug 857 total: 850 passed, 0 failed, 7 skipped; Release 851 total: 845 passed, 0 failed,
+6 skipped; mutation check 21/21 planted bugs caught; race gate 50/50; no vulnerable packages. **Not finished:** 3 manual
+checks are waiting for the owner. All deletion
+was on synthetic sandbox files; the real Temp folder was only scanned read-only, and real settings and history weren't changed.
+
+Fixed (full list with sources in `docs/TESTING.md` → "Review findings"):
+- **Cancel was slow on big cleanups:** `CleanupService` now reports progress every 50 files instead of after each one
+- **Settings can't quietly get looser:** saving keeps a valid value that isn't a preset; unknown names pause cleanup; replacing
+  unreadable settings asks first and keeps `settings.json.unreadable`; "Delete old logs" respects the pause (in `LogMaintenance`)
+- **The screens tell the truth:** a notice when logging is off (`ILogStatus`, checked at startup) and when a scan stops at its
+  limit; the age rule shows the age in force; "Saved" clears after a change
+- **Side jobs can't cost the real report:** free-space and history failures are contained; list and log-cleanup failures are
+  said on the page; a bad history line no longer breaks the History page
+- **Closing the window mid-cleanup** stops it before the next file and shows the report
+- **Debug sandbox runs** keep their settings, history and logs beside the sandbox, never the real ones
+- **`System.Net.Http` implicit import really removed** (moved to the new `Directory.Build.targets`; the old setting did nothing)
+- Settings Tab order; status line tooltip
+
+Created:
+- `src/SafeClean.Core/Interfaces/ILogStatus.cs`, `Directory.Build.targets`
+- Tests: `CompiledAssemblyTests` (reads the compiled program: native calls, libraries, framework calls), `ReviewFindingsTests` (App);
+  additions to `ForbiddenApiTests`, `ArchitectureTests`, `FileLoggerTests`, `LogMaintenanceTests`, `SettingsAndHistoryStoreTests`,
+  `CleanupServiceTests`, `TempScannerTests`
+
+Docs: `docs/SECURITY.md` (T20, T21, §12, §13 and new known limitations), `docs/TESTING.md` (threat table, findings, failure
+simulation, checklist), `docs/ARCHITECTURE.md`, `README.md`.
+
+### Phase 10 — settings, exclusions, logging controls and cleanup history ✅ Done (2026-10-31)
+Verified: build 0 warnings; 803 total: 796 passed, 0 failed, 7 skipped; mutation check 10/10 planted bugs caught (one after an added test). The only new deletion
+(SafeClean's own old logs) is manual, asks first and reuses the existing engine; tests used synthetic sandbox
+folders only. The owner's real settings, history and logs were not changed.
+
+Created:
+- `src/SafeClean.Core/`: `Models/UserSettings`, `Models/CleanupHistoryEntry`, `Policies/SettingsPolicy`,
+  `Policies/WildcardPattern`, `Interfaces/ISettingsService`, `Interfaces/ICleanupHistory`, `Interfaces/ILogMaintenance`
+- `src/SafeClean.Infrastructure/`: `Settings/UserSettingsStore`, `Settings/JsonLinesCleanupHistory`,
+  `Logging/LogMaintenance`, `Logging/LogFolderRootResolver`
+- `src/SafeClean.App/`: `Services/UserPrompt`, `ViewModels/Choice`, `Converters/NullToCollapsedConverter`
+- Tests: `SettingsPolicyTests` (Core); `Settings/SettingsAndHistoryStoreTests`, `Settings/SettingsInScanAndCleanupTests`,
+  `Logging/LogMaintenanceTests` (Infrastructure); `SettingsAndHistoryViewModelTests` (App)
+
+Changed:
+- `CandidatePolicyContext.ForSettings` (excluded folders and name patterns, longer age); `TempScanner` and
+  `CleanupService` use the saved settings; `CleanupRefusal.SettingsUnreadable` and `CleanupPolicy.CheckRequest`
+- `FileLogger` / `FileLoggerProvider`: adjustable log level, cleanup audit trail always written
+- `SettingsViewModel` / `SettingsView`, `HistoryViewModel` / `HistoryView`: real pages instead of placeholders
+- `JunkCleanerViewModel`: Real mode paused while saved settings are unreadable; each real cleanup recorded in history
+- `App.xaml.cs`: registers the settings store, history, log maintenance and prompt; applies the log level
+- `ForbiddenApiTests`: file replace/move allowed only in `UserSettingsStore.cs`
+- `docs/SECURITY.md` §13, `README.md` "Settings (stricter only)", `ARCHITECTURE.md`, `TESTING.md`
+
+### Phase 9 — Dashboard, Performance screen and UI polish ✅ Done (2026-10-27)
+Verified: builds 0 warnings (Debug and Release); 687 passed, 0 failed, 7 skipped; contrast of 34 colour pairs
+meets WCAG; screenshots at default and minimum size; keyboard walkthrough; focus ring confirmed; 0 unnamed
+controls. No new deletion paths; the Junk Cleaner screenshots used Debug sandbox mode (synthetic files).
+
+Created:
+- `src/SafeClean.App/`: `Services/UiTimers`, `Mvvm/RelayCommandOfT`, `Controls/AdaptiveColumnsPanel`,
+  `Converters/SparklineConverter`, `Converters/AtLeastToVisibilityConverter`, `Presentation/WindowFit`,
+  `ViewModels/MonitoringRows`
+- `tests/SafeClean.App.Tests/`: `DashboardViewModelTests`, `PerformanceViewModelTests`, `LayoutAndFormatTests`,
+  `JunkCleanerPolishTests`, `ContrastTests`
+
+Changed:
+- `DashboardViewModel` / `DashboardView`, `PerformanceViewModel` / `PerformanceView`: live, read-only data
+- `PageViewModel` (`OnShown`/`OnHidden`), `MainViewModel`, `MainWindow`: refresh only the visible page, none while
+  minimised; window fits the usable screen area (it was cut off on 1366×768)
+- `JunkCleanerViewModel` / `JunkCleanerView`: closable compact details, Esc order, tiles step aside on short
+  windows, one-line selection text, wrapping category titles, "Sandbox folder" label, drive free-space change in the report
+- `CandidateItemViewModel` (spoken row names), `CategoryViewModel`, `CleanupReportViewModel`, `DisplayText.FormatPercent`
+- `Controls.xaml`: `Notice.*`, `Button.Header`, named scrollbar buttons; page header spacing
+- `ArchitectureTests`: red buttons only on the Junk Cleaner screen
+- `docs/TESTING.md`: contrast table, keyboard walkthrough, two new manual checklist items
+
 ### Phase 8 — read-only monitoring services ✅ Done (2026-10-17)
 Verified: build 0 warnings; 608 passed, 0 failed, 7 skipped; readings match Windows' own figures (RAM, drives,
 top programs; CPU within 2–3 points when sampled side by side). Nothing is changed on the system.

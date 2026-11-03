@@ -48,8 +48,18 @@ public sealed class SystemMonitor : ISystemMonitor
 
     public IReadOnlyList<DriveSnapshot> GetDrives()
     {
+        DriveInfo[] all;
+        try
+        {
+            all = DriveInfo.GetDrives();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return []; // Unknown, not guessed. Callers show nothing rather than made-up figures.
+        }
+
         var drives = new List<DriveSnapshot>();
-        foreach (var drive in DriveInfo.GetDrives())
+        foreach (var drive in all)
         {
             try
             {

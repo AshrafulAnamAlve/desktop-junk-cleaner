@@ -10,12 +10,14 @@ using Microsoft.Extensions.Logging;
 using SafeClean.App.Services;
 using SafeClean.App.ViewModels;
 using SafeClean.Core.Interfaces;
+using SafeClean.Core.Models;
 using SafeClean.Core.Policies;
 using SafeClean.Infrastructure.Cleanup;
 using SafeClean.Infrastructure.Environment;
 using SafeClean.Infrastructure.Logging;
 using SafeClean.Infrastructure.Monitoring;
 using SafeClean.Infrastructure.Scanning;
+using SafeClean.Infrastructure.Settings;
 
 namespace SafeClean.App;
 
@@ -36,13 +38,24 @@ public partial class App : Application
 
         try
         {
-            _loggerProvider = new FileLoggerProvider(FileLoggerProvider.DefaultDirectory);
+            var dataFiles = new DataFiles(FileLoggerProvider.DefaultDirectory, UserSettingsStore.DefaultPath, JsonLinesCleanupHistory.DefaultPath);
             string? sandboxRoot = null;
 #if DEBUG
             sandboxRoot = ReadSandboxArgument(e.Args);
+            if (sandboxRoot is not null)
+            {
+                dataFiles = SandboxDataFiles(sandboxRoot);
+            }
 #endif
-            _services = ConfigureServices(_loggerProvider, sandboxRoot);
+            _loggerProvider = new FileLoggerProvider(dataFiles.LogDirectory);
+            _loggerProvider.CheckWritable();
+            _services = ConfigureServices(_loggerProvider, sandboxRoot, dataFiles);
             _logger = _services.GetRequiredService<ILogger<App>>();
+
+            // The log level follows the user's settings (cleanup audit lines are always written).
+            var settings = _services.GetRequiredService<ISettingsService>();
+            ApplyLogLevel(_loggerProvider, settings.Current);
+            settings.Changed += (_, _) => ApplyLogLevel(_loggerProvider, settings.Current);
 
             var info = _services.GetRequiredService<AppInfo>();
             var elevation = _services.GetRequiredService<IElevationProbe>();
@@ -77,7 +90,7 @@ public partial class App : Application
         base.OnExit(e);
     }
 
-    private static ServiceProvider ConfigureServices(FileLoggerProvider loggerProvider, string? sandboxRoot)
+    private static ServiceProvider ConfigureServices(FileLoggerProvider loggerProvider, string? sandboxRoot, DataFiles dataFiles)
     {
         var services = new ServiceCollection();
 
@@ -90,6 +103,7 @@ public partial class App : Application
 
         var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.0.0";
         services.AddSingleton(new AppInfo(version, loggerProvider.Directory, sandboxRoot));
+        services.AddSingleton<ILogStatus>(loggerProvider);
 
         // Infrastructure
         services.AddSingleton(TimeProvider.System);
@@ -99,9 +113,25 @@ public partial class App : Application
         services.AddSingleton<ITempScanner, TempScanner>();
         services.AddSingleton<ISystemMonitor, SystemMonitor>(); // read-only monitoring (Phase 8)
 
+        // Settings and history (Phase 10). One settings store serves the scanner, the cleanup service and the UI.
+        services.AddSingleton(provider => new UserSettingsStore(dataFiles.SettingsFile, provider.GetRequiredService<ILogger<UserSettingsStore>>()));
+        services.AddSingleton<ISettingsService>(provider => provider.GetRequiredService<UserSettingsStore>());
+        services.AddSingleton<IUserSettingsProvider>(provider => provider.GetRequiredService<UserSettingsStore>());
+        services.AddSingleton<ICleanupHistory>(provider =>
+            new JsonLinesCleanupHistory(dataFiles.HistoryFile, provider.GetRequiredService<ILogger<JsonLinesCleanupHistory>>()));
+        services.AddSingleton<ILogMaintenance>(provider => new LogMaintenance(
+            loggerProvider.Directory,
+            provider.GetRequiredService<IElevationProbe>(),
+            provider.GetRequiredService<FileInspector>(),
+            provider.GetRequiredService<TimeProvider>(),
+            provider.GetRequiredService<ILoggerFactory>(),
+            provider.GetRequiredService<IUserSettingsProvider>()));
+        services.AddSingleton<IUserPrompt, MessageBoxPrompt>();
+
         // Cleanup: the only path to the deletion engine. The service refuses unsafe requests and re-checks every file.
         services.AddSingleton<ICleanupService, CleanupService>();
         services.AddSingleton<ICleanupConfirmation, DialogCleanupConfirmation>();
+        services.AddSingleton<IUiTimerFactory, DispatcherUiTimerFactory>();
 
 #if DEBUG
         if (sandboxRoot is not null)
@@ -158,7 +188,25 @@ public partial class App : Application
 
         return root;
     }
+
+    /// <summary>
+    /// DEBUG BUILDS ONLY: a sandbox run keeps its settings, history and logs in a folder beside the sandbox, so it
+    /// can never read or change the real ones (and "Delete old logs" can only reach synthetic log files).
+    /// </summary>
+    private static DataFiles SandboxDataFiles(string sandboxRoot)
+    {
+        var folder = Path.Combine(WindowsPath.TrimTrailingSeparator(sandboxRoot) + ".appdata", "SafeClean");
+        return new DataFiles(Path.Combine(folder, "Logs"), Path.Combine(folder, "settings.json"), Path.Combine(folder, "history.jsonl"));
+    }
 #endif
+
+    private static void ApplyLogLevel(FileLoggerProvider provider, UserSettings settings) =>
+        provider.MinimumLevel = settings.LogLevel switch
+        {
+            SettingsLogLevel.Warning => LogLevel.Warning,
+            SettingsLogLevel.Error => LogLevel.Error,
+            _ => LogLevel.Information,
+        };
 
     private void RegisterGlobalExceptionHandlers()
     {
@@ -188,4 +236,7 @@ public partial class App : Application
         _logger?.LogError(e.Exception, "Unobserved background task exception.");
         e.SetObserved();
     }
+
+    /// <summary>Where SafeClean keeps its own data.</summary>
+    private sealed record DataFiles(string LogDirectory, string SettingsFile, string HistoryFile);
 }

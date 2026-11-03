@@ -23,8 +23,15 @@ public sealed class CleanupService(
     IElevationProbe elevationProbe,
     FileInspector inspector,
     TimeProvider timeProvider,
-    ILogger<CleanupService> logger) : ICleanupService
+    ILogger<CleanupService> logger,
+    IUserSettingsProvider? settings = null) : ICleanupService
 {
+    /// <summary>
+    /// Progress is reported after the first file, the last, and every this many between. Each report queues work on
+    /// the UI thread ahead of mouse clicks, so one per file delays the user's Cancel by thousands of deleted files.
+    /// </summary>
+    internal const int ProgressInterval = 50;
+
     public Task<CleanupReport> CleanAsync(
         ScanSession session,
         IReadOnlyCollection<CandidateId> selected,
@@ -48,7 +55,7 @@ public sealed class CleanupService(
     {
         var startedAt = timeProvider.GetUtcNow();
 
-        if (CleanupPolicy.CheckRequest(mode, elevationProbe.IsElevated, session, startedAt) is { } refusal)
+        if (CleanupPolicy.CheckRequest(mode, elevationProbe.IsElevated, session, startedAt, settings?.LoadProblem is null) is { } refusal)
         {
             return Refuse(mode, startedAt, refusal, []);
         }
@@ -60,7 +67,8 @@ public sealed class CleanupService(
             return Refuse(mode, startedAt, rootRefusal ?? CleanupRefusal.RootRefused, resolution.Decision.Problems);
         }
 
-        var context = new CandidatePolicyContext(resolution.Decision.Root, resolution.ProtectedLocations, startedAt);
+        // The same settings as scanning (read again now): newer exclusions or a longer age only make it stricter.
+        var context = CandidatePolicyContext.ForSettings(resolution.Decision.Root, resolution.ProtectedLocations, startedAt, settings?.Current);
         var candidates = session.Candidates.ToDictionary(c => c.Id);
         var ids = selected.Distinct().ToList();
         var entries = new List<CleanupEntry>(ids.Count);
@@ -102,7 +110,10 @@ public sealed class CleanupService(
             try
             {
                 LogEntry(mode, entry);
-                progress?.Report(new CleanupProgress(entries.Count, ids.Count));
+                if (entries.Count == 1 || entries.Count == ids.Count || entries.Count % ProgressInterval == 0)
+                {
+                    progress?.Report(new CleanupProgress(entries.Count, ids.Count));
+                }
             }
             catch (Exception)
             {

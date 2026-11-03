@@ -11,7 +11,10 @@ public sealed class CandidateItemViewModel : ObservableObject
     private readonly Action<CandidateItemViewModel> _selectionChanged;
     private bool _isSelected;
 
-    public CandidateItemViewModel(ScanCandidate candidate, Action<CandidateItemViewModel> selectionChanged)
+    /// <param name="candidate">The scan entry.</param>
+    /// <param name="selectionChanged">Called when the checkbox changes.</param>
+    /// <param name="rootLabel">How the scanned folder itself is named in the list ("Temp folder", or "Sandbox folder" in Debug sandbox mode).</param>
+    public CandidateItemViewModel(ScanCandidate candidate, Action<CandidateItemViewModel> selectionChanged, string rootLabel = "Temp folder")
     {
         ArgumentNullException.ThrowIfNull(candidate);
         Candidate = candidate;
@@ -20,7 +23,7 @@ public sealed class CandidateItemViewModel : ObservableObject
         var relative = candidate.Decision.RelativePath;
         var separator = relative?.LastIndexOf('\\') ?? -1;
         Name = DisplayText.Reveal(WindowsPath.GetName(candidate.Path));
-        Folder = relative is null ? string.Empty : separator < 0 ? "Temp folder" : DisplayText.Reveal(relative[..separator]);
+        Folder = relative is null ? string.Empty : separator < 0 ? rootLabel : DisplayText.Reveal(relative[..separator]);
         FullPath = DisplayText.Reveal(candidate.Path);
 
         var facts = candidate.Facts;
@@ -85,6 +88,11 @@ public sealed class CandidateItemViewModel : ObservableObject
             }
         }
     }
+
+    /// <summary>What screen readers announce for the row: "a.tmp, 100 bytes, Safe to remove".</summary>
+    public string SpokenName => $"{Name}, {SizeText}, {StatusText}";
+
+    public override string ToString() => SpokenName;
 
     /// <summary>Changes the selection without notifying the page (used for bulk changes, which recount once).</summary>
     internal void SetSelectedQuietly(bool value)

@@ -10,7 +10,8 @@ public sealed class CandidatePolicyContext
         ProtectedLocations protectedLocations,
         DateTimeOffset now,
         TimeSpan? minimumAge = null,
-        IEnumerable<string>? excludedSubtrees = null)
+        IEnumerable<string>? excludedSubtrees = null,
+        IEnumerable<string>? excludedNamePatterns = null)
     {
         ArgumentNullException.ThrowIfNull(root);
         ArgumentNullException.ThrowIfNull(protectedLocations);
@@ -24,6 +25,7 @@ public sealed class CandidatePolicyContext
         MinimumAge = requested > SafetyDefaults.MinimumFileAge ? requested : SafetyDefaults.MinimumFileAge;
 
         ExcludedSubtrees = (excludedSubtrees ?? []).Select(NormalizeExclusion).ToList();
+        ExcludedNamePatterns = (excludedNamePatterns ?? []).Select(NormalizePattern).ToList();
     }
 
     public ApprovedRoot Root { get; }
@@ -39,8 +41,31 @@ public sealed class CandidatePolicyContext
     /// <summary>User exclusions: folders or files to always skip.</summary>
     public IReadOnlyList<string> ExcludedSubtrees { get; }
 
+    /// <summary>User exclusions: file-name patterns (<c>*.log</c>) to always skip, wherever the file is.</summary>
+    public IReadOnlyList<string> ExcludedNamePatterns { get; }
+
+    /// <summary>
+    /// The rules as the user's settings make them. Scanning and cleanup both build their rules here, so a
+    /// cleanup always uses the same (or newer, never looser than at scan time for selectable files) settings.
+    /// </summary>
+    public static CandidatePolicyContext ForSettings(ApprovedRoot root, ProtectedLocations protectedLocations, DateTimeOffset now, UserSettings? settings)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+        settings ??= UserSettings.Default;
+
+        var exclusions = settings.Exclusions ?? [];
+        return new CandidatePolicyContext(
+            root,
+            protectedLocations,
+            now,
+            TimeSpan.FromDays(settings.MinimumFileAgeDays),
+            exclusions.Where(e => !SettingsPolicy.IsNamePattern(e)).Select(relative => root.CanonicalPath + @"\" + relative.TrimEnd('\\')),
+            exclusions.Where(SettingsPolicy.IsNamePattern));
+    }
+
     internal bool IsExcluded(string path) =>
-        ExcludedSubtrees.Any(excluded => WindowsPath.IsSameOrInside(excluded, path, StringComparison.OrdinalIgnoreCase));
+        ExcludedSubtrees.Any(excluded => WindowsPath.IsSameOrInside(excluded, path, StringComparison.OrdinalIgnoreCase))
+        || (ExcludedNamePatterns.Count > 0 && ExcludedNamePatterns.Any(pattern => WildcardPattern.IsMatch(WindowsPath.GetName(path), pattern)));
 
     private static string NormalizeExclusion(string raw)
     {
@@ -52,5 +77,16 @@ public sealed class CandidatePolicyContext
         }
 
         return path;
+    }
+
+    private static string NormalizePattern(string raw)
+    {
+        var result = SettingsPolicy.ValidateExclusion(raw);
+        if (result.Error is not null || !SettingsPolicy.IsNamePattern(result.Normalized!))
+        {
+            throw new ArgumentException($"Exclusion pattern '{raw}' is not valid.", nameof(raw));
+        }
+
+        return result.Normalized!;
     }
 }

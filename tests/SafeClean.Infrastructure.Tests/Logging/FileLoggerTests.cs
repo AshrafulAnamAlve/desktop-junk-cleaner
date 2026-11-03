@@ -90,6 +90,45 @@ public sealed class FileLoggerTests : IDisposable
     }
 
     [Fact]
+    public void UnusableLogFolder_IsAnnouncedOnce_SoTheUserCanBeTold()
+    {
+        var blocker = _sandbox.PathFor("not-a-folder");
+        File.WriteAllText(blocker, "blocks directory creation");
+        using var provider = new FileLoggerProvider(Path.Combine(blocker, "logs"), () => Day1, FakeProfile);
+        var announced = 0;
+        provider.Disabled += (_, _) => announced++;
+
+        provider.CreateLogger("Test").LogError("first");
+        provider.CreateLogger("Test").LogError("second");
+
+        Assert.Equal(1, announced);
+    }
+
+    [Fact]
+    public void CheckWritable_NoticesAnUnusableFolder_WithoutAnyLogLine()
+    {
+        var blocker = _sandbox.PathFor("not-a-folder");
+        File.WriteAllText(blocker, "blocks directory creation");
+        using var provider = new FileLoggerProvider(Path.Combine(blocker, "logs"), () => Day1, FakeProfile);
+
+        provider.CheckWritable();
+
+        Assert.True(provider.IsDisabled);
+    }
+
+    [Fact]
+    public void CheckWritable_OnAGoodFolder_KeepsLoggingOn()
+    {
+        var directory = _sandbox.PathFor("logs");
+        using var provider = new FileLoggerProvider(directory, () => Day1, FakeProfile);
+
+        provider.CheckWritable();
+        provider.CreateLogger("Test").LogInformation("still works");
+
+        Assert.False(provider.IsDisabled);
+    }
+
+    [Fact]
     public void LoggingAfterDispose_IsIgnored()
     {
         var directory = _sandbox.PathFor("logs");

@@ -3,28 +3,111 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False" Padding="40,0,40,32">
     <StackPanel>
+      <!-- Settings that couldn't be read: safe defaults are in force and cleanup is paused -->
+      <Border Style="{StaticResource Notice.Warning}" Margin="0,0,0,16">
+        <Border.Visibility>
+          <Binding Path="LoadProblem" Converter="{StaticResource NullToCollapsed}" />
+        </Border.Visibility>
+        <TextBlock Text="{Binding LoadProblem}" Foreground="{StaticResource Brush.Warning}" FontWeight="SemiBold" TextWrapping="Wrap" />
+      </Border>
+
+      <!-- Cleanup rules: stricter only -->
       <Border Style="{StaticResource Card}">
         <StackPanel>
-          <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-            <TextBlock Style="{StaticResource Text.CardIcon}" Text="&#xE7B3;" />
-            <TextBlock Style="{StaticResource Text.CardTitle}" Text="Cleanup mode" />
+          <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+            <TextBlock Style="{StaticResource Text.CardIcon}" Text="&#xE72E;" />
+            <TextBlock Style="{StaticResource Text.CardTitle}" Text="Cleanup rules" />
           </StackPanel>
-          <TextBlock Style="{StaticResource Text.Body}"
-                     Text="Dry Run (preview only). SafeClean always starts in this mode. Real cleanup can't be switched on in this version yet." />
+          <TextBlock Style="{StaticResource Text.Caption}" Margin="0,0,0,14"
+                     Text="These settings can only make SafeClean more careful. Changes apply from the next scan." />
+
+          <TextBlock Text="Only offer files older than" FontWeight="SemiBold" Margin="0,0,0,6" />
+          <ListBox Style="{StaticResource ChoiceList}" ItemsSource="{Binding AgeOptions}" SelectedItem="{Binding SelectedAge}"
+                   AutomationProperties.Name="Minimum file age" />
+          <TextBlock Style="{StaticResource Text.Caption}" Margin="0,6,0,18"
+                     Text="Measured from the newer of a file's created and modified dates. 7 days is the lowest allowed." />
+
+          <TextBlock Text="Always keep (exclusions)" FontWeight="SemiBold" Margin="0,0,0,4" />
+          <TextBlock Style="{StaticResource Text.Caption}" Margin="0,0,0,8" TextWrapping="Wrap"
+                     Text="A folder or file inside your Temp folder, written relative to it (for example Installers\Old), or a file-name pattern such as *.log. Excluded files are listed as skipped and never deleted." />
+          <ItemsControl ItemsSource="{Binding Exclusions}" Focusable="False" AutomationProperties.Name="Exclusions">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Border Background="{StaticResource Brush.Sidebar}" CornerRadius="6" Padding="10,4" Margin="0,0,0,4">
+                  <DockPanel>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource Button.Header}" Content="&#xE711;" FontFamily="{StaticResource Font.Icons}"
+                            Command="{Binding DataContext.RemoveExclusionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                            CommandParameter="{Binding}" ToolTip="Remove this exclusion"
+                            AutomationProperties.Name="{Binding StringFormat='Remove exclusion {0}'}" />
+                    <TextBlock Text="{Binding}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                  </DockPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <!-- Tab order follows what is on screen: the box first, then its button -->
+          <DockPanel Margin="0,4,0,0" MaxWidth="560" HorizontalAlignment="Left" KeyboardNavigation.TabNavigation="Local">
+            <Button DockPanel.Dock="Right" Style="{StaticResource Button.Secondary}" Command="{Binding AddExclusionCommand}" Content="_Add" Margin="8,0,0,0" TabIndex="2" />
+            <TextBox Style="{StaticResource TextBox.Input}" Text="{Binding NewExclusion, UpdateSourceTrigger=PropertyChanged}" MinWidth="280" TabIndex="1"
+                     AutomationProperties.Name="New exclusion">
+              <TextBox.InputBindings>
+                <KeyBinding Key="Enter" Command="{Binding AddExclusionCommand}" />
+              </TextBox.InputBindings>
+            </TextBox>
+          </DockPanel>
+          <TextBlock Text="{Binding ExclusionError}" Foreground="{StaticResource Brush.Warning}" TextWrapping="Wrap" Margin="0,6,0,0" />
+
+          <TextBlock Style="{StaticResource Text.Caption}" Margin="0,14,0,0" TextWrapping="Wrap"
+                     Text="Real cleanup mode is not a setting: it is off every time SafeClean starts, and you switch it on in the Junk Cleaner when you want it." />
         </StackPanel>
       </Border>
 
+      <!-- Logs -->
       <Border Style="{StaticResource Card}" Margin="0,16,0,0">
         <StackPanel>
           <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
             <TextBlock Style="{StaticResource Text.CardIcon}" Text="&#xE8A5;" />
             <TextBlock Style="{StaticResource Text.CardTitle}" Text="Logs" />
           </StackPanel>
-          <TextBlock Style="{StaticResource Text.Body}" Margin="0,0,0,12"
-                     Text="SafeClean keeps a local record of what it does. Logs never contain file contents, and your user folder is written as %USERPROFILE%." />
+          <TextBlock Style="{StaticResource Text.Body}" Margin="0,0,0,12" TextWrapping="Wrap"
+                     Text="SafeClean keeps a local record of what it does. Logs never contain file contents, and your user folder is written as %USERPROFILE%. Each file it deletes is always logged, whatever the level below." />
           <TextBlock Style="{StaticResource Text.Caption}" Text="Log folder" Margin="0,0,0,4" />
-          <TextBox Style="{StaticResource TextBox.ReadOnly}" Text="{Binding LogDirectory, Mode=OneWay}"
-                   AutomationProperties.Name="Log folder path" />
+          <DockPanel MaxWidth="760" HorizontalAlignment="Left" KeyboardNavigation.TabNavigation="Local">
+            <Button DockPanel.Dock="Right" Style="{StaticResource Button.Secondary}" Content="Copy path" Margin="8,0,0,0" Click="OnCopyLogPath" TabIndex="2" />
+            <TextBox x:Name="LogPath" Style="{StaticResource TextBox.ReadOnly}" Text="{Binding LogDirectory, Mode=OneWay}" AutomationProperties.Name="Log folder path" TabIndex="1" />
+          </DockPanel>
+
+          <TextBlock Text="How much to log" FontWeight="SemiBold" Margin="0,16,0,6" />
+          <ListBox Style="{StaticResource ChoiceList}" ItemsSource="{Binding LogLevelOptions}" SelectedItem="{Binding SelectedLogLevel}"
+                   AutomationProperties.Name="Log level" />
+
+          <TextBlock Text="Old logs may be deleted after" FontWeight="SemiBold" Margin="0,16,0,6" />
+          <ListBox Style="{StaticResource ChoiceList}" ItemsSource="{Binding RetentionOptions}" SelectedItem="{Binding SelectedRetention}"
+                   AutomationProperties.Name="Log retention" />
+          <TextBlock Style="{StaticResource Text.Caption}" Margin="0,6,0,10" TextWrapping="Wrap"
+                     Text="Nothing is deleted automatically. The button below removes only SafeClean's own log files (safeclean-YYYYMMDD.log) older than the saved number of days, after asking you." />
+          <Button Style="{StaticResource Button.Secondary}" Command="{Binding DeleteOldLogsCommand}" Content="Delete old SafeClean logs…" HorizontalAlignment="Left" />
+          <TextBlock Text="{Binding LogStatus}" Style="{StaticResource Text.Body}" TextWrapping="Wrap" Margin="0,8,0,0" />
+        </StackPanel>
+      </Border>
+
+      <!-- Save -->
+      <Border Style="{StaticResource Card}" Margin="0,16,0,0" Padding="20,14">
+        <StackPanel>
+          <DockPanel>
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+              <Button Style="{StaticResource Button.Secondary}" Command="{Binding RevertCommand}" Content="Undo changes" />
+              <Button Style="{StaticResource Button.Primary}" Command="{Binding SaveCommand}" Content="_Save settings" Margin="8,0,0,0" />
+            </StackPanel>
+            <TextBlock Text="{Binding SaveStatus}" VerticalAlignment="Center" FontWeight="SemiBold" TextWrapping="Wrap" />
+          </DockPanel>
+          <ItemsControl ItemsSource="{Binding SaveErrors}" Margin="0,6,0,0" Focusable="False" AutomationProperties.Name="Problems with these settings">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding StringFormat='•  {0}'}" Foreground="{StaticResource Brush.Warning}" TextWrapping="Wrap" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
         </StackPanel>
       </Border>
 

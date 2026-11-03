@@ -17,4 +17,7 @@ public enum CleanupRefusal
 
     /// <summary>The Temp folder is no longer the same folder (path or identity) that was scanned.</summary>
     RootChanged,
+
+    /// <summary>The saved settings couldn't be read, so exclusions the user relies on might be missing.</summary>
+    SettingsUnreadable,
 }

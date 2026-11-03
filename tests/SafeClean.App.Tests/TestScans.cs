@@ -42,6 +42,16 @@ internal static class TestScans
         return ScanResult.Completed(decision, session);
     }
 
+    /// <summary>The standard scan, as if it had stopped at the entry limit.</summary>
+    public static ScanResult CutShort()
+    {
+        var full = Standard();
+        var session = full.Session!;
+        return ScanResult.Completed(
+            full.RootDecision,
+            new ScanSession(session.Id, session.Root, session.StartedAt, session.CompletedAt, session.Candidates, session.FoldersScanned, session.VanishedDuringScan, wasTruncated: true));
+    }
+
     public static ScanResult Refused() =>
         ScanResult.Refused(RootPolicy.Evaluate(GoodRoot with { IsFixedDrive = false, FileSystemName = "FAT32" }, Protected));
 }

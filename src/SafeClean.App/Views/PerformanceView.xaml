@@ -1,19 +1,144 @@
 <UserControl x:Class="SafeClean.App.Views.PerformanceView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:SafeClean.App.ViewModels"
+             xmlns:conv="clr-namespace:SafeClean.App.Converters"
+             xmlns:controls="clr-namespace:SafeClean.App.Controls">
+  <UserControl.Resources>
+    <conv:SparklineConverter x:Key="Sparkline" />
+  </UserControl.Resources>
+
+  <!-- Information only: nothing on this page can close programs or change memory or settings. -->
   <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False" Padding="40,0,40,32">
     <StackPanel>
-      <Border Style="{StaticResource Card}" Padding="32">
-        <StackPanel HorizontalAlignment="Center" MaxWidth="560">
-          <Border Style="{StaticResource EmptyStateIcon}">
-            <TextBlock Text="&#xE9D2;" FontFamily="{StaticResource Font.Icons}" FontSize="22"
-                       Foreground="{StaticResource Brush.Accent.SoftText}"
-                       HorizontalAlignment="Center" VerticalAlignment="Center" />
-          </Border>
-          <TextBlock Style="{StaticResource Text.EmptyTitle}" Text="Live monitoring isn't connected yet"
-                     HorizontalAlignment="Center" Margin="0,16,0,8" />
-          <TextBlock Style="{StaticResource Text.Body}" TextAlignment="Center"
-                     Text="This screen will show memory, processor and disk usage, and how much memory each running program reports. It only reads information. It never closes programs or changes system settings." />
+      <controls:AdaptiveColumnsPanel MinColumnWidth="300" MaxColumns="2" Spacing="16">
+        <Border Style="{StaticResource Card}">
+          <StackPanel>
+            <DockPanel>
+              <TextBlock DockPanel.Dock="Right" Style="{StaticResource Text.MetricValue}" Text="{Binding MemoryValue}" Margin="0"
+                         AutomationProperties.Name="{Binding MemoryValue, StringFormat='Memory in use: {0}'}" />
+              <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Style="{StaticResource Text.CardIcon}" Text="&#xE964;" />
+                <TextBlock Style="{StaticResource Text.CardTitle}" Text="Memory" />
+              </StackPanel>
+            </DockPanel>
+            <TextBlock Style="{StaticResource Text.Caption}" Text="{Binding MemoryDetail}" Margin="0,2,0,10" />
+            <Border Background="{StaticResource Brush.Window}" CornerRadius="6" Height="64" Padding="2">
+              <Viewbox Stretch="Fill">
+                <Canvas Width="300" Height="60">
+                  <Polyline Points="{Binding MemoryHistory, Converter={StaticResource Sparkline}}"
+                            Stroke="{StaticResource Brush.Accent}" StrokeThickness="2" StrokeLineJoin="Round" />
+                </Canvas>
+              </Viewbox>
+            </Border>
+            <TextBlock Style="{StaticResource Text.Caption}" Text="{Binding HistoryCaption}" Margin="0,6,0,0" />
+          </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource Card}">
+          <StackPanel>
+            <DockPanel>
+              <TextBlock DockPanel.Dock="Right" Style="{StaticResource Text.MetricValue}" Text="{Binding CpuValue}" Margin="0"
+                         AutomationProperties.Name="{Binding CpuValue, StringFormat='Processor use: {0}'}" />
+              <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Style="{StaticResource Text.CardIcon}" Text="&#xE9D9;" />
+                <TextBlock Style="{StaticResource Text.CardTitle}" Text="Processor" />
+              </StackPanel>
+            </DockPanel>
+            <TextBlock Style="{StaticResource Text.Caption}" Text="{Binding CpuDetail}" Margin="0,2,0,10" />
+            <Border Background="{StaticResource Brush.Window}" CornerRadius="6" Height="64" Padding="2">
+              <Viewbox Stretch="Fill">
+                <Canvas Width="300" Height="60">
+                  <Polyline Points="{Binding CpuHistory, Converter={StaticResource Sparkline}}"
+                            Stroke="{StaticResource Brush.Success}" StrokeThickness="2" StrokeLineJoin="Round" />
+                </Canvas>
+              </Viewbox>
+            </Border>
+            <TextBlock Style="{StaticResource Text.Caption}" Text="{Binding HistoryCaption}" Margin="0,6,0,0" />
+          </StackPanel>
+        </Border>
+      </controls:AdaptiveColumnsPanel>
+
+      <!-- Drives -->
+      <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+        <StackPanel>
+          <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+            <TextBlock Style="{StaticResource Text.CardIcon}" Text="&#xEDA2;" />
+            <TextBlock Style="{StaticResource Text.CardTitle}" Text="Drives" />
+          </StackPanel>
+          <ItemsControl ItemsSource="{Binding Drives}" Focusable="False">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate DataType="{x:Type vm:DriveRowViewModel}">
+                <StackPanel Margin="0,0,0,12">
+                  <DockPanel>
+                    <TextBlock DockPanel.Dock="Right" Text="{Binding UsedText}" Style="{StaticResource Text.Caption}" />
+                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+                  </DockPanel>
+                  <ProgressBar Value="{Binding UsedPercent, Mode=OneWay}" Maximum="100" Height="6" Margin="0,6,0,4"
+                               AutomationProperties.Name="{Binding Title, StringFormat='{}{0} used space'}" />
+                  <TextBlock Text="{Binding DetailText}" Style="{StaticResource Text.Caption}" />
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+
+      <!-- Programs (read-only) -->
+      <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+        <StackPanel>
+          <DockPanel Margin="0,0,0,10">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+              <CheckBox IsChecked="{Binding AutoRefreshProcesses}" Content="Refresh every 5 s" VerticalAlignment="Center" Margin="0,0,12,0" />
+              <Button Style="{StaticResource Button.Secondary}" Command="{Binding RefreshProcessesCommand}" Content="_Refresh" Padding="12,6" />
+            </StackPanel>
+            <StackPanel>
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Style="{StaticResource Text.CardIcon}" Text="&#xE9D2;" />
+                <TextBlock Style="{StaticResource Text.CardTitle}" Text="Programs using the most memory" />
+              </StackPanel>
+              <TextBlock Style="{StaticResource Text.Caption}" Text="{Binding ProcessStatus}" Margin="0,2,0,0" />
+            </StackPanel>
+          </DockPanel>
+
+          <!-- Column headers: click to sort -->
+          <Grid Margin="0,0,0,4">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="80" />
+              <ColumnDefinition Width="110" />
+              <ColumnDefinition Width="110" />
+            </Grid.ColumnDefinitions>
+            <Button Grid.Column="0" Style="{StaticResource Button.Header}" Content="{Binding NameHeader}"
+                    Command="{Binding SortCommand}" CommandParameter="{x:Static vm:ProcessSortColumn.Name}" HorizontalAlignment="Left" />
+            <Button Grid.Column="1" Style="{StaticResource Button.Header}" Content="{Binding IdHeader}"
+                    Command="{Binding SortCommand}" CommandParameter="{x:Static vm:ProcessSortColumn.Id}" HorizontalAlignment="Right" />
+            <Button Grid.Column="2" Style="{StaticResource Button.Header}" Content="{Binding WorkingSetHeader}"
+                    Command="{Binding SortCommand}" CommandParameter="{x:Static vm:ProcessSortColumn.WorkingSet}" HorizontalAlignment="Right" />
+            <Button Grid.Column="3" Style="{StaticResource Button.Header}" Content="{Binding PrivateHeader}"
+                    Command="{Binding SortCommand}" CommandParameter="{x:Static vm:ProcessSortColumn.PrivateBytes}" HorizontalAlignment="Right" />
+          </Grid>
+          <Border BorderBrush="{StaticResource Brush.Border}" BorderThickness="0,1,0,0" />
+          <ItemsControl ItemsSource="{Binding Processes}" Focusable="False" AutomationProperties.Name="Programs using the most memory">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate DataType="{x:Type vm:ProcessRowViewModel}">
+                <Grid Margin="0,5">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="80" />
+                    <ColumnDefinition Width="110" />
+                    <ColumnDefinition Width="110" />
+                  </Grid.ColumnDefinitions>
+                  <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" Margin="8,0,0,0" />
+                  <TextBlock Grid.Column="1" Text="{Binding Id}" HorizontalAlignment="Right" Foreground="{StaticResource Brush.Text.Secondary}" Margin="0,0,8,0" />
+                  <TextBlock Grid.Column="2" Text="{Binding WorkingSetText}" HorizontalAlignment="Right" Margin="0,0,8,0" />
+                  <TextBlock Grid.Column="3" Text="{Binding PrivateText}" HorizontalAlignment="Right" Foreground="{StaticResource Brush.Text.Secondary}" Margin="0,0,8,0" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock Style="{StaticResource Text.Caption}" Margin="0,8,0,0"
+                     Text="&quot;In RAM&quot; is the program's working set; &quot;Private&quot; is memory reserved for it alone. SafeClean only shows these figures — it never closes programs or changes their memory." />
         </StackPanel>
       </Border>
 

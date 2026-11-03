@@ -1,15 +1,16 @@
 using System.Globalization;
 using System.Text;
 using Microsoft.Extensions.Logging;
+using SafeClean.Core.Interfaces;
 
 namespace SafeClean.Infrastructure.Logging;
 
 /// <summary>
 /// Minimal local file logger: one UTF-8 text file per day in the given directory.
-/// Logging must never crash the app, so I/O failures disable file logging instead of throwing.
-/// Nothing is ever sent over the network.
+/// Logging must never crash the app, so I/O failures disable file logging instead of throwing,
+/// and <see cref="Disabled"/> lets the app tell the user. Nothing is ever sent over the network.
 /// </summary>
-public sealed class FileLoggerProvider : ILoggerProvider
+public sealed class FileLoggerProvider : ILoggerProvider, ILogStatus
 {
     private readonly object _gate = new();
     private readonly string _directory;
@@ -50,6 +51,18 @@ public sealed class FileLoggerProvider : ILoggerProvider
         }
     }
 
+    public event EventHandler? Disabled;
+
+    /// <summary>
+    /// Lowest level written (set from the user's settings). The cleanup audit trail (one line per file, rule D7)
+    /// is always written, whatever this is set to.
+    /// </summary>
+    public LogLevel MinimumLevel { get; set; } = LogLevel.Information;
+
+    /// <summary>Categories whose Information lines are the cleanup audit trail and are never filtered out.</summary>
+    internal static bool IsAuditCategory(string category) =>
+        string.Equals(category, "SafeClean.Infrastructure.Cleanup.CleanupService", StringComparison.Ordinal);
+
     public ILogger CreateLogger(string categoryName) => new FileLogger(this, categoryName);
 
     internal void Write(LogLevel level, string category, string message, Exception? exception)
@@ -67,7 +80,18 @@ public sealed class FileLoggerProvider : ILoggerProvider
         }
 
         var text = Redact(line.ToString());
+        WithWriter(now, writer => writer.WriteLine(text));
+    }
 
+    /// <summary>
+    /// Opens today's log file now, so a log folder that can't be written is noticed at startup
+    /// whatever the log level (with "errors only", no line may be written for a long time).
+    /// </summary>
+    public void CheckWritable() => WithWriter(_clock(), _ => { });
+
+    private void WithWriter(DateTimeOffset now, Action<StreamWriter> use)
+    {
+        var justDisabled = false;
         lock (_gate)
         {
             if (_disabled || _disposed)
@@ -78,13 +102,19 @@ public sealed class FileLoggerProvider : ILoggerProvider
             try
             {
                 EnsureWriter(DateOnly.FromDateTime(now.DateTime));
-                _writer!.WriteLine(text);
+                use(_writer!);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
             {
                 _disabled = true;
+                justDisabled = true;
                 CloseWriter();
             }
+        }
+
+        if (justDisabled)
+        {
+            Disabled?.Invoke(this, EventArgs.Empty);
         }
     }
 

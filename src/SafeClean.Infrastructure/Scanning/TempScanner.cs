@@ -20,8 +20,12 @@ public sealed class TempScanner(
     ITempRootResolver rootResolver,
     FileInspector inspector,
     TimeProvider timeProvider,
-    ILogger<TempScanner> logger) : ITempScanner
+    ILogger<TempScanner> logger,
+    IUserSettingsProvider? settings = null) : ITempScanner
 {
+    /// <summary>The entry limit. Only tests change it, so they can reach it without creating 250,000 files.</summary>
+    internal int MaxEntries { get; init; } = SafetyDefaults.MaxScanEntries;
+
     public Task<ScanResult> ScanAsync(IProgress<ScanProgress>? progress, CancellationToken cancellationToken) =>
         Task.Run(() => Scan(progress, cancellationToken), cancellationToken);
 
@@ -36,8 +40,9 @@ public sealed class TempScanner(
             return ScanResult.Refused(resolution.Decision);
         }
 
-        var context = new CandidatePolicyContext(resolution.Decision.Root, resolution.ProtectedLocations, startedAt);
-        var run = new ScanRun(inspector, context, progress, cancellationToken);
+        // The user's settings (minimum age, exclusions) can only make the rules stricter.
+        var context = CandidatePolicyContext.ForSettings(resolution.Decision.Root, resolution.ProtectedLocations, startedAt, settings?.Current);
+        var run = new ScanRun(inspector, context, MaxEntries, progress, cancellationToken);
         run.Execute();
 
         var session = new ScanSession(
@@ -67,6 +72,7 @@ public sealed class TempScanner(
     private sealed class ScanRun(
         FileInspector inspector,
         CandidatePolicyContext context,
+        int maxEntries,
         IProgress<ScanProgress>? progress,
         CancellationToken cancellationToken)
     {
@@ -157,7 +163,7 @@ public sealed class TempScanner(
                         break;
                     }
 
-                    if (Candidates.Count >= SafetyDefaults.MaxScanEntries)
+                    if (Candidates.Count >= maxEntries)
                     {
                         Truncated = true;
                         return;
