@@ -235,7 +235,7 @@ Every threat in `SECURITY.md` §7: the code that stops it and the tests that pro
 
 The `/code-review` skill ran at level *high* on the working tree (10 findings). The first attempt at the `/security-review`
 skill failed: it starts with `git diff origin/HEAD...`, and the local `origin/HEAD` pointer wasn't set. (An earlier version of
-this note wrongly said the repository had no remote.) The whole deletion path was also read line by line by hand (5 more
+this note wrongly said the repository had no remote.) It ran later, before the push (see the results log). The whole deletion path was also read line by line by hand (5 more
 findings below), which covers more than a review of recent changes would. Two more problems came from the failure simulation
 itself.
 
@@ -385,6 +385,7 @@ in `SECURITY.md` §6; tests confirm the implementation follows it.
 | 2026-10-31 | 10 | Settings and History pages in the app (UI Automation, nothing saved) | ✅ Bad exclusions refused with reasons; add + undo on screen only; `settings.json` / `history.jsonl` not created; 0 unnamed controls (1 fixed) |
 | 2026-11-02 | 11 | Baseline before any change: builds (no-incremental) and tests | ✅ 0 warnings; Debug 803 total: 796 passed, 0 failed, 7 skipped; Release 797 total: 791 passed, 0 failed, 6 skipped |
 | 2026-11-02 | 11 | `/security-review` skill, first attempt | ❌ Failed to start: the local `origin/HEAD` pointer wasn't set. A line-by-line manual review of the deletion path was done instead (5 findings) |
+| 2026-11-03 | 11 | `/security-review` skill on commit 95803fd | ✅ Both passes ran: no finding reached the reporting threshold (confidence 8). One was real but low severity (6/10; the first pass rated it medium): writes while elevated can follow planted links, including the log writer (`SECURITY.md` §10). From reading the code; nothing was run |
 | 2026-11-02 | 11 | `/code-review` skill, level high | ✅ Ran: 10 findings, each checked; 9 real and fixed, 1 not a bug (the button was enabled in the running app) |
 | 2026-11-02 | 11 | Race gate (`Gate23`) repeated 50 times, then the Infrastructure suite 5 times | ✅ 50/50 and 5/5 passed (each gate run: 50 rounds × 20 files); no flakiness; no sandbox folders left behind. Run before the progress change, which doesn't touch the checks the gate exercises |
 | 2026-11-02 | 11 | 100,000-file sandbox, first runs | ❌ Two runs stopped safely before deleting (test script used the wrong button name, and hit a locked log file). One run found the real Cancel delay: about 4,000 more files deleted after the click → fixed; 324 in the same test |

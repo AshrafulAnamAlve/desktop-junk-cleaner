@@ -305,6 +305,7 @@ controls services. Values Windows won't give are shown as unknown ("n/a", "measu
   for that run. Files already deleted stay deleted, the rest are untouched, and the audit log can miss at most the one
   file being deleted at that moment.
 - A scan stops at 250,000 entries and says so on screen; files beyond the limit aren't listed and can't be selected.
+- **Open finding (Phase 11, low severity):** while SafeClean runs as administrator, it still writes its own log, settings and history in `%LOCALAPPDATA%\SafeClean` without checking for links. That folder can be changed without administrator rights, so malware already running as the user could aim those writes at a protected file if the user chooses to run SafeClean as administrator. It doesn't apply to a normal run, and SafeClean never asks for administrator rights. Planned fix: write nothing while elevated. Until then, don't run SafeClean as administrator.
 
 ## 11. Deliberately unsupported in version 1
 
