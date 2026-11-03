@@ -1,6 +1,6 @@
 # Phase 11 — Security Review, Regression and Manual Verification
 
-**Status:** In progress (2026-11-02): everything automated is done and passing; 3 manual checks are waiting for the owner · **Depends on:** Phases 1–10 · **Deletes anything?** Sandbox files only
+**Status:** ✅ Done (2026-11-03) · **Depends on:** Phases 1–10 · **Deletes anything?** Sandbox files only
 
 ## Goal
 
@@ -30,21 +30,21 @@ Results in `TESTING.md` → "Failure simulation". Added during the run: closing 
 | Log folder unwritable | App runs; logging disabled notice | ✅ |
 | Settings/history file corrupt | Defaults; warning | ✅ |
 | `TEMP` set to another folder (test session) | Cleanup refused with reason | ✅ |
-| Launched "Run as administrator" | Scan works; cleanup disabled with explanation | ⏳ Owner |
+| Launched "Run as administrator" | Scan works; cleanup disabled with explanation | ✅ |
 | 100,000 synthetic files in sandbox | Scan completes or is capped with warning; UI responsive | ✅ |
 | Deep nesting / access-denied folders | Skipped, scan continues | ✅ |
 | Cancel mid-scan and mid-cleanup | Clean stop; report accurate | ✅ |
 | Disk nearly full (sandbox on small VHD, optional) | No crash | ⏭️ Not run (needs administrator rights) |
 
 ### Manual checklist
-- [ ] Complete every item in `TESTING.md` → "Manual test checklist": 10 of 13 done; 3 need the owner (run as administrator, display scaling, Narrator)
+- [x] Complete every item in `TESTING.md` → "Manual test checklist": 13 of 13 (display scaling and Narrator checked by the owner)
 - [x] Verify no network activity: open sockets polled during a full run (not Resource Monitor; see `TESTING.md`)
 - [x] Read a log file: no file contents, no full profile paths
 
 ## Done when
 
 - [x] Every finding fixed or written down as a known limitation in `SECURITY.md`
-- [ ] Sign-off summary in `TESTING.md`: written once the owner's 3 checks are in
+- [x] Sign-off summary in `TESTING.md`
 
 ## Risks
 

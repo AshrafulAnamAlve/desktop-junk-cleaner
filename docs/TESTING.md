@@ -274,7 +274,7 @@ mismatch aborted with Cancel (this stopped two runs safely, both because of mist
 | Log folder unwritable | ✅ App runs; notice on every page; scanning works | Sandbox: a file placed where the log folder should be. The real log folder wasn't touched, so this used the sandbox's log folder, not `%LOCALAPPDATA%` |
 | Settings and history corrupt | ✅ Defaults, Real mode paused with the reason; *No* leaves the file as it was; *Yes* keeps `settings.json.unreadable` and lifts the pause. History shows the good entry and counts 2 bad lines | Sandbox |
 | `TEMP` set to another folder | ✅ Refused with the reason; no delete button; the file in that folder untouched | **Release build**, `TEMP` and `TMP` set for that process only |
-| Run as administrator | ⏳ Tests cover the refusal; the real launch needs the owner to approve Windows' prompt | Manual checklist |
+| Run as administrator | ✅ Scan works; cleanup and all writing to SafeClean's own folder are blocked, with the reason shown | **Release build** with real administrator rights, approved by the owner at the Windows prompt; read-only |
 | 100,000 synthetic files | ✅ Exactly 100,003 entries counted; 41 s; 262 MB; slowest UI answer 1.9 s; Windows never reported "not responding" | Sandbox |
 | Entry limit | ✅ Stops at the limit and says so | `ScanAtItsEntryLimit_StopsThere_AndSaysItWasCutShort` with a limit of 10 (not with 250,000 real files) |
 | Deep nesting and access-denied folders | ✅ Each listed as one skipped entry; the scan continues | Sandbox: 20 levels, and a folder with a deny rule |
@@ -289,8 +289,13 @@ delete button in that script.
 
 ### Sign-off summary
 
-**Not signed off yet.** Everything that can be checked automatically passed (results log below). Phase 11 stays open until the
-owner finishes the unticked items in the manual checklist.
+**Signed off 2026-11-03.** On the final code: builds 0 warnings; Debug 859 passed, Release 854 passed, 0 failed; mutation checks
+caught 32/32 planted bugs; race gate 50/50; no vulnerable packages. The manual checklist is complete: 11 items checked by UI
+Automation, 2 (display scaling, Narrator) by the owner. All 18 review items are closed: 17 fixed, 1 not a bug.
+
+Not run, or not proved by a test: the optional disk-nearly-full case (needs administrator rights to make a test disk); the
+file-symlink and short-name tests, which skip on this PC (Developer Mode off, short names off on this drive); and the attack
+behind finding 18, which came from reading the code and was never attempted. Remaining limits are in `SECURITY.md` §10.
 
 ## Gate before enabling real deletion (Phase 6)
 
@@ -407,21 +412,23 @@ in `SECURITY.md` §6; tests confirm the implementation follows it.
 | 2026-11-03 | 11 | `dotnet test` Release, after that fix | ✅ 860 total: 854 passed, 0 failed, 6 skipped |
 | 2026-11-03 | 11 | Failure simulation and dialog keys in the real app, after that fix | ✅ 48 and 8 checks passed; real `settings.json` and `history.jsonl` not created. Run without administrator rights: the elevated behaviour is covered by tests only, and the real elevated launch is on the manual checklist |
 | 2026-11-03 | 11 | Release binaries searched for sandbox code, after that fix | ✅ 0 hits in all 3 assemblies |
+| 2026-11-03 | 11 | Real "Run as administrator" launch (Release build, owner approved the Windows prompt; read-only script with no code for Real mode or Delete) | ✅ Notice shown on every page; Real mode switch greyed out with the reason; no delete button; Save settings and "Delete old SafeClean logs…" greyed out; read-only scan of the real Temp folder worked; SafeClean's 7 files byte-for-byte unchanged; `settings.json` and `history.jsonl` not created. One script check failed because of the test, not the app: it looked for the name "ADMINISTRATOR", but that label's screen-reader name is the longer warning text. The badge is visible in the screenshot. A first attempt stopped before doing anything (script bug) |
+| 2026-11-03 | 11 | Display scaling at 125 % and 150 %, and Windows Narrator | ✅ Reported by the owner: all OK |
 
 ## Manual test checklist (Phase 11)
 
-Ticked items were checked by UI Automation on 2026-11-02 (details in the results log). Unticked items need the owner.
+Checked by UI Automation on 2026-11-02 and 2026-11-03 (details in the results log), except the two marked as checked by the owner.
 
 - [x] Fresh launch shows Dry Run mode and performs no scan or cleanup automatically. *(Release build)*
 - [x] Keyboard only: Tab/arrow keys reach every navigation item and button, and the blue focus ring is visible on each. *(Tab order on Settings this phase, other pages in Phase 9; focus ring seen in screenshots of a sample of controls)*
 - [x] Window resizes down to minimum size without clipped controls. *(All 5 pages at 900×600; long pages scroll. At that size, with the extra Debug banner, the file list shows 1 row)*
-- [ ] **Owner:** Launch elevated ("Run as administrator"): cleanup controls disabled with explanation; a notice says nothing is being written; Save settings, "Delete old SafeClean logs…" and "Clear history" are disabled.
+- [x] Launch elevated ("Run as administrator"): cleanup controls disabled with explanation; a notice says nothing is being written; Save settings and "Delete old SafeClean logs…" are disabled. *(Release build with real administrator rights, approved by the owner at the Windows prompt; read-only. "Clear history" has no button until there is history, so a test covers it)*
 - [x] Set `TEMP` to another folder for a test session: app refuses cleanup and explains. *(Release build)*
 - [x] Scan results match a manual look at a few files (size, date). *(5 real files, read-only)*
 - [x] Cleanup report numbers match deleted files; skipped files still exist. *(Sandbox)*
 - [x] Log file contains no file contents and no full user paths. *(Real logs, read-only)*
 - [x] No network traffic. *(Open sockets polled, not Resource Monitor; see the results log. The owner can also look in Resource Monitor if they want a second opinion)*
-- [ ] **Owner:** At 125 % and 150 % display scaling (the owner's own setting), every page fits and nothing is cut off (Phase 9).
-- [ ] **Owner:** Windows Narrator reads the sidebar, the Scan / Preview / Real-mode / Delete controls and file rows sensibly (Phase 9).
+- [x] At 125 % and 150 % display scaling (the owner's own setting), every page fits and nothing is cut off (Phase 9). *(Checked by the owner, 2026-11-03)*
+- [x] Windows Narrator reads the sidebar, the Scan / Preview / Real-mode / Delete controls and file rows sensibly (Phase 9). *(Checked by the owner, 2026-11-03)*
 - [x] Settings: change the minimum age and add an exclusion, save, close and reopen SafeClean — the values are still there; a scan lists matching files as *Skipped (Excluded)* (Phase 10). *(Sandbox, so the real settings file wasn't created)*
 - [x] Settings → "Delete old SafeClean logs…": answering *No* deletes nothing; with no old logs it says so and asks nothing (Phase 10). *(Sandbox, with synthetic logs)*

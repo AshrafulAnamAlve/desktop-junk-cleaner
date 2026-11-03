@@ -16,7 +16,7 @@ One file per phase. Each file says **what** the phase builds, **why**, **which f
 | 8 | Read-only monitoring services | [PHASE-08](PHASE-08-monitoring-services.md) | ✅ Done (2026-10-17) |
 | 9 | Dashboard, Performance screen, UI polish | [PHASE-09](PHASE-09-dashboard-and-polish.md) | ✅ Done (2026-10-27) |
 | 10 | Settings, exclusions, logging, history | [PHASE-10](PHASE-10-settings-history.md) | ✅ Done (2026-10-31) |
-| 11 | Security review and verification | [PHASE-11](PHASE-11-security-review.md) | In progress: automated work done, 3 manual checks left for the owner |
+| 11 | Security review and verification | [PHASE-11](PHASE-11-security-review.md) | ✅ Done (2026-11-03) |
 | 12 | Publishing | [PHASE-12](PHASE-12-publishing.md) | Not started |
 
 ## Rules that apply to every phase

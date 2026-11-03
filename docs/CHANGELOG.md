@@ -2,10 +2,10 @@
 
 ## [Unreleased]
 
-### Phase 11 — security review and verification (in progress, 2026-11-02)
+### Phase 11 — security review and verification ✅ Done (2026-11-03)
 Verified: builds 0 warnings; Debug 866 total: 859 passed, 0 failed, 7 skipped; Release 860 total: 854 passed, 0 failed,
-6 skipped; mutation checks 32/32 planted bugs caught; race gate 50/50; no vulnerable packages. **Not finished:** 3 manual
-checks are waiting for the owner. All deletion
+6 skipped; mutation checks 32/32 planted bugs caught; race gate 50/50; no vulnerable packages. The owner checked display
+scaling and Narrator; the real administrator launch passed. The optional disk-nearly-full case wasn't run. All deletion
 was on synthetic sandbox files; the real Temp folder was only scanned read-only, and real settings and history weren't changed.
 
 Fixed (full list with sources in `docs/TESTING.md` → "Review findings"):

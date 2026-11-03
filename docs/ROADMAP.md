@@ -23,7 +23,7 @@ Detailed plan for each phase: [`docs/phases/`](phases/README.md) (one file per p
 | 8 | Read-only RAM / CPU / disk / process monitoring services + tests | Done (2026-10-17) |
 | 9 | Dashboard and Performance screens on real data; UI polish and accessibility | Done (2026-10-27) |
 | 10 | Settings, restrict-only exclusions, logging controls, cleanup history | Done (2026-10-31) |
-| 11 | Security review, regression, failure simulation, manual verification | In progress: 3 manual checks left for the owner |
+| 11 | Security review, regression, failure simulation, manual verification | Done (2026-11-03) |
 | 12 | Publish self-contained build with free tools; compatibility notes | Not started |
 
 ---
@@ -113,12 +113,12 @@ Detailed plan for each phase: [`docs/phases/`](phases/README.md) (one file per p
 - [x] Verified: 0 warnings; 796 passed, 7 skipped; mutation check caught 10/10 planted bugs (one after an added test);
   Settings and History pages checked in the app without saving anything
 
-## Phase 11 – Security review and verification (in progress)
+## Phase 11 – Security review and verification ✅ (2026-11-03)
 - [x] Full regression in Debug and Release; race gate repeated 50 times; dependency audit; Release binaries checked
 - [x] Threat walkthrough (T1–T21: code and tests); code review, security review and manual review; 17 real problems fixed
 - [x] Failure simulation on synthetic files, including 100,000 files, cancel, close and kill mid-cleanup
 - [x] Verified: 0 warnings; Debug 859 passed, Release 854 passed, 0 failed; mutation checks caught 32/32 planted bugs
-- [~] Manual checklist: 10 of 13 done; run as administrator, display scaling and Narrator need the owner
+- [x] Manual checklist: 13 of 13 (display scaling and Narrator checked by the owner)
 
 ## Phase 12 – Publishing
 - [ ] Self-contained `win-x64` publish with free tooling; compatibility and limitations documented

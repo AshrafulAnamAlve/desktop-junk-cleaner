@@ -2,11 +2,12 @@
 
 A safety-first Windows PC cleaner built with C#, WPF and .NET 10. Free, local-only, no cloud services.
 
-> **Current status: Phase 9 done** — the Junk Cleaner screen scans your Temp folder (read-only), shows
+> **Current status: Phase 11 done, publishing is next** — the Junk Cleaner screen scans your Temp folder (read-only), shows
 > every file with its status and reason, lets you tick files or categories, shows a **Dry Run preview**,
 > and — only if you switch **Real cleanup mode** on and confirm — deletes the selected files through the
 > safety-tested engine. The **Dashboard** and **Performance** screens show live, read-only memory,
-> processor, drive and program-memory figures. 687 automated tests pass (7 skipped with documented reasons).
+> processor, drive and program-memory figures. **Settings** can make the rules stricter, and **History** lists past
+> cleanups. 859 automated tests pass (7 skipped with documented reasons).
 
 ## What it will do (version 1)
 
