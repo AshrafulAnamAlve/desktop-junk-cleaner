@@ -10,9 +10,9 @@ namespace SafeClean.Infrastructure.Settings;
 /// <summary>
 /// <c>%LOCALAPPDATA%\SafeClean\history.jsonl</c>: one JSON line per cleanup, appended. Counts and sizes only —
 /// the entry type has no field for file names. Unreadable lines are skipped and counted. "Clear" empties the
-/// file; it never deletes anything.
+/// file; it never deletes anything. Nothing is written while running as administrator (docs/SECURITY.md R8).
 /// </summary>
-public sealed class JsonLinesCleanupHistory(string path, ILogger<JsonLinesCleanupHistory> logger) : ICleanupHistory
+public sealed class JsonLinesCleanupHistory(string path, ILogger<JsonLinesCleanupHistory> logger, bool writingAllowed = true) : ICleanupHistory
 {
     private const int MaxEntries = 1000;
     private const long MaxFileBytes = 4 * 1024 * 1024;
@@ -80,6 +80,11 @@ public sealed class JsonLinesCleanupHistory(string path, ILogger<JsonLinesCleanu
     public void Append(CleanupHistoryEntry entry)
     {
         ArgumentNullException.ThrowIfNull(entry);
+        if (!writingAllowed)
+        {
+            return;
+        }
+
         lock (_gate)
         {
             try
@@ -99,6 +104,11 @@ public sealed class JsonLinesCleanupHistory(string path, ILogger<JsonLinesCleanu
 
     public void Clear()
     {
+        if (!writingAllowed)
+        {
+            return;
+        }
+
         lock (_gate)
         {
             try

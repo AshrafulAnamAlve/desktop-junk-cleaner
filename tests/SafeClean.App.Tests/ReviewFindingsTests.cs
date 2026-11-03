@@ -99,6 +99,68 @@ public sealed class ReviewFindingsTests
         Assert.Contains("unexpected error", page.LogStatus, StringComparison.Ordinal);
     }
 
+    // ---- Nothing is written while running as administrator ----
+
+    [Fact]
+    public void WhenElevated_SettingsCantBeSaved_AndOldLogsCantBeDeleted()
+    {
+        var settings = new FakeSettingsService();
+        var logs = new FakeLogMaintenance(oldFiles: 3);
+        var prompt = new FakePrompt(true);
+        var page = Pages.Settings(settings, logs: logs, prompt: prompt, elevated: true);
+
+        Assert.False(page.SaveCommand.CanExecute(null));
+        Assert.False(page.DeleteOldLogsCommand.CanExecute(null));
+
+        page.SaveCommand.Execute(null);
+
+        Assert.Empty(settings.Saved);
+        Assert.Empty(prompt.Questions);
+    }
+
+    [Fact]
+    public void NormallySettingsCanBeSaved_AndOldLogsCanBeDeleted()
+    {
+        var page = Pages.Settings();
+
+        Assert.True(page.SaveCommand.CanExecute(null));
+        Assert.True(page.DeleteOldLogsCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void WhenElevated_HistoryCantBeCleared()
+    {
+        var history = new FakeHistory();
+        history.Append(new CleanupHistoryEntry(TestScans.Now, CleanupHistoryEntry.TempFolder, 1, 0, 0, 10, 1, null));
+        var prompt = new FakePrompt(true);
+        var page = Pages.History(history, prompt, elevated: true);
+        page.Reload();
+
+        Assert.NotEmpty(page.Entries); // still shown: reading is fine
+        Assert.False(page.ClearCommand.CanExecute(null));
+
+        page.ClearCommand.Execute(null);
+
+        Assert.Equal(0, history.ClearCalls);
+        Assert.Empty(prompt.Questions);
+    }
+
+    [Fact]
+    public void WhenElevated_TheWindowSaysWhyNothingIsWritten()
+    {
+        var logStatus = new FakeLogStatus();
+        logStatus.TurnOff();
+        var monitor = new FakeSystemMonitor();
+        var timers = new ManualTimerFactory();
+        var junk = Pages.JunkCleaner(elevated: true);
+
+        var shell = Pages.Shell(Pages.Dashboard(monitor, junk, timers, elevated: true), junk, Pages.Performance(monitor, timers), logStatus, elevated: true);
+
+        Assert.True(shell.IsLoggingOff);
+        Assert.Contains("administrator", shell.LoggingOffText, StringComparison.Ordinal);
+        Assert.Contains("settings", shell.LoggingOffText, StringComparison.Ordinal);
+    }
+
     // ---- The Junk Cleaner tells the truth about its results ----
 
     [Fact]

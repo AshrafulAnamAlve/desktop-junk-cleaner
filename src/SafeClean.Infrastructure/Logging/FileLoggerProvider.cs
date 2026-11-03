@@ -21,9 +21,14 @@ public sealed class FileLoggerProvider : ILoggerProvider, ILogStatus
     private bool _disabled;
     private bool _disposed;
 
-    public FileLoggerProvider(string directory, Func<DateTimeOffset>? clock = null, string? profilePathToRedact = null)
+    /// <param name="directory">Where the log files go.</param>
+    /// <param name="clock">The time source (tests only).</param>
+    /// <param name="profilePathToRedact">The path written as %USERPROFILE%, by default the real one.</param>
+    /// <param name="writingAllowed">False while running as administrator: logging is off from the start (docs/SECURITY.md R8).</param>
+    public FileLoggerProvider(string directory, Func<DateTimeOffset>? clock = null, string? profilePathToRedact = null, bool writingAllowed = true)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(directory);
+        _disabled = !writingAllowed;
         _directory = directory;
         _clock = clock ?? (() => DateTimeOffset.Now);
         _profilePath = string.IsNullOrWhiteSpace(profilePathToRedact)

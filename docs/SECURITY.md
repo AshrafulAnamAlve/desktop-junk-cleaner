@@ -42,7 +42,7 @@ It is resolved at runtime (never hard-coded) and accepted only if **all** of the
 | R5 | It is the **same directory** (same volume serial number and file ID) as `%LOCALAPPDATA%\Temp`. A `TEMP` variable redirected to `C:\`, `D:\Data`, `C:\Windows\Temp`, etc. is refused. An identity that could not be read (all zeros) never matches. |
 | R6 | It is not a drive root, not the user profile root, does not contain any protected location, and is not inside Windows, Program Files or ProgramData. |
 | R7 | The canonical root used for all comparisons is the path the **operating system reports** for an opened handle to the directory (`GetFinalPathNameByHandle`), not a string we built. |
-| R8 | Cleanup (not scanning) is refused while the process is elevated. |
+| R8 | Cleanup (not scanning) is refused while the process is elevated. SafeClean also writes nothing to its own folder then (no log, settings or history; §13). |
 
 If any check fails, SafeClean shows why and offers **no cleanup at all**.
 
@@ -237,7 +237,7 @@ creating links in Temp, a misconfigured `TEMP` variable, race conditions, accide
 | T6 | Hard link to a file stored elsewhere | Link count must be 1. |
 | T7 | `TEMP` points somewhere dangerous | Root must be the same directory as `%LOCALAPPDATA%\Temp` and pass protected-path checks. |
 | T8 | Malformed or malicious path strings | Strict validator (traversal, ADS, device names, UNC, trailing dots/spaces); deletion targets come only from enumeration. |
-| T9 | SafeClean started as administrator | Manifest is `asInvoker`; cleanup disabled when elevated. |
+| T9 | SafeClean started as administrator | Manifest is `asInvoker`; cleanup disabled when elevated; nothing written to SafeClean's own folder (§13). |
 | T10 | Cloud/offline placeholder files (e.g. OneDrive) | Offline/recall/pinned attributes and reparse points are skipped. |
 | T11 | Read-only, hidden or system files | Skipped; attributes are never changed. |
 | T12 | UI selects or sends wrong items | The cleanup service independently revalidates everything; the UI never decides what is deletable. |
@@ -305,7 +305,8 @@ controls services. Values Windows won't give are shown as unknown ("n/a", "measu
   for that run. Files already deleted stay deleted, the rest are untouched, and the audit log can miss at most the one
   file being deleted at that moment.
 - A scan stops at 250,000 entries and says so on screen; files beyond the limit aren't listed and can't be selected.
-- **Open finding (Phase 11, low severity):** while SafeClean runs as administrator, it still writes its own log, settings and history in `%LOCALAPPDATA%\SafeClean` without checking for links. That folder can be changed without administrator rights, so malware already running as the user could aim those writes at a protected file if the user chooses to run SafeClean as administrator. It doesn't apply to a normal run, and SafeClean never asks for administrator rights. Planned fix: write nothing while elevated. Until then, don't run SafeClean as administrator.
+- While SafeClean runs as administrator it still **reads** its settings and history from `%LOCALAPPDATA%\SafeClean`, which can be changed without administrator rights, so what it shows can be misleading. Those files can't widen what SafeClean does, and cleanup is refused while elevated anyway.
+- In a normal run SafeClean's own writes don't check for links in `%LOCALAPPDATA%\SafeClean`. A program running as the same user could aim them elsewhere, but it could write to those places itself, so it gains nothing.
 
 ## 11. Deliberately unsupported in version 1
 
@@ -403,3 +404,10 @@ The "Open log folder" button from the plan was replaced by **Copy path**, so Saf
 **If the log file can't be written** (Phase 11), SafeClean keeps working and shows a notice on every page saying the
 session isn't being recorded, so the on-screen report is the only record of a cleanup. It checks at startup, whatever the
 log level, and again on every write.
+
+**While running as administrator, SafeClean writes nothing to its own folder** (Phase 11): no log, no settings, no history.
+That folder can be changed without administrator rights, so links planted there by a program running as the user could
+otherwise aim an elevated write at a protected file. The rule is enforced in the three classes that write
+(`FileLoggerProvider`, `UserSettingsStore`, `JsonLinesCleanupHistory`), not only in the screens: Save, "Delete old logs" and
+"Clear history" are disabled, and a notice on every page says why.
+`ArchitectureTests.OnlyThreeFilesWriteToDisk_AndRunningAsAdministratorTurnsThemAllOff` fails if another class starts writing.

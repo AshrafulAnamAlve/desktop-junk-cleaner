@@ -258,6 +258,7 @@ itself.
 | 15 | Manual review | Closing the window mid-cleanup cut it off with no report or history; the banned-API list had gaps (attributes, permissions, `ProcessStartInfo`, `File.Copy`, more network APIs) | Fixed: closing stops the cleanup and shows the report; list extended, plus `CompiledAssemblyTests`, which reads the compiled program (native calls, libraries, framework calls) |
 | 16 | Failure simulation | **Cancel was slow on big cleanups**: progress per file queued work ahead of mouse clicks, so about 4,000 more files were deleted after the click | Fixed: progress every 50 files; 324 more in the same test |
 | 17 | Keyboard test | On Settings, Tab reached Add before its text box and Copy path before its field | Fixed |
+| 18 | `/security-review` | While running as administrator, SafeClean's log, settings and history writes didn't check for planted links in a folder that can be changed without administrator rights | Fixed: nothing is written while elevated, enforced in the three writing classes; a test fails if another class starts writing |
 
 `ForbiddenApiTests` review: the allow-list names only `HandleBasedFileDeleter.cs` (deletion) and `UserSettingsStore.cs` (its
 own settings file). The plan's "Explorer launch" no longer exists: Phase 10 replaced it with **Copy path**.
@@ -385,7 +386,7 @@ in `SECURITY.md` §6; tests confirm the implementation follows it.
 | 2026-10-31 | 10 | Settings and History pages in the app (UI Automation, nothing saved) | ✅ Bad exclusions refused with reasons; add + undo on screen only; `settings.json` / `history.jsonl` not created; 0 unnamed controls (1 fixed) |
 | 2026-11-02 | 11 | Baseline before any change: builds (no-incremental) and tests | ✅ 0 warnings; Debug 803 total: 796 passed, 0 failed, 7 skipped; Release 797 total: 791 passed, 0 failed, 6 skipped |
 | 2026-11-02 | 11 | `/security-review` skill, first attempt | ❌ Failed to start: the local `origin/HEAD` pointer wasn't set. A line-by-line manual review of the deletion path was done instead (5 findings) |
-| 2026-11-03 | 11 | `/security-review` skill on commit 95803fd | ✅ Both passes ran: no finding reached the reporting threshold (confidence 8). One was real but low severity (6/10; the first pass rated it medium): writes while elevated can follow planted links, including the log writer (`SECURITY.md` §10). From reading the code; nothing was run |
+| 2026-11-03 | 11 | `/security-review` skill on commit 95803fd | ✅ Both passes ran: no finding reached the reporting threshold (confidence 8). One was real but low severity (6/10; the first pass rated it medium): writes while elevated could follow planted links, including the log writer. From reading the code; the attack itself was never run. Fixed: see finding 18 |
 | 2026-11-02 | 11 | `/code-review` skill, level high | ✅ Ran: 10 findings, each checked; 9 real and fixed, 1 not a bug (the button was enabled in the running app) |
 | 2026-11-02 | 11 | Race gate (`Gate23`) repeated 50 times, then the Infrastructure suite 5 times | ✅ 50/50 and 5/5 passed (each gate run: 50 rounds × 20 files); no flakiness; no sandbox folders left behind. Run before the progress change, which doesn't touch the checks the gate exercises |
 | 2026-11-02 | 11 | 100,000-file sandbox, first runs | ❌ Two runs stopped safely before deleting (test script used the wrong button name, and hit a locked log file). One run found the real Cancel delay: about 4,000 more files deleted after the click → fixed; 324 in the same test |
@@ -400,6 +401,12 @@ in `SECURITY.md` §6; tests confirm the implementation follows it.
 | 2026-11-02 | 11 | Final `dotnet build` Debug and Release (no-incremental) | ✅ 0 warnings, 0 errors |
 | 2026-11-02 | 11 | Final `dotnet test` Debug | ✅ 857 total: 850 passed, 0 failed, 7 skipped (Core 455; Infrastructure 209 + 7; App 186). Skips: 3 opt-in manual tests, 3 file-symlink tests (no Developer Mode), 1 short-name test (off on this drive) |
 | 2026-11-02 | 11 | Final `dotnet test` Release | ✅ 851 total: 845 passed, 0 failed, 6 skipped (the Debug-only sandbox tests don't exist in Release, so the total is 6 lower and there's one fewer opt-in test); no sandbox folders left behind |
+| 2026-11-03 | 11 | Mutation check of "nothing written while elevated" (11 planted bugs, restored and verified by SHA-256) | ✅ 11/11 caught; final runs on restored sources 0 failing |
+| 2026-11-03 | 11 | `dotnet build` Debug and Release (no-incremental), after that fix | ✅ 0 warnings, 0 errors |
+| 2026-11-03 | 11 | `dotnet test` Debug, after that fix | ✅ 866 total: 859 passed, 0 failed, 7 skipped (Core 456; Infrastructure 213 + 7; App 190) |
+| 2026-11-03 | 11 | `dotnet test` Release, after that fix | ✅ 860 total: 854 passed, 0 failed, 6 skipped |
+| 2026-11-03 | 11 | Failure simulation and dialog keys in the real app, after that fix | ✅ 48 and 8 checks passed; real `settings.json` and `history.jsonl` not created. Run without administrator rights: the elevated behaviour is covered by tests only, and the real elevated launch is on the manual checklist |
+| 2026-11-03 | 11 | Release binaries searched for sandbox code, after that fix | ✅ 0 hits in all 3 assemblies |
 
 ## Manual test checklist (Phase 11)
 
@@ -408,7 +415,7 @@ Ticked items were checked by UI Automation on 2026-11-02 (details in the results
 - [x] Fresh launch shows Dry Run mode and performs no scan or cleanup automatically. *(Release build)*
 - [x] Keyboard only: Tab/arrow keys reach every navigation item and button, and the blue focus ring is visible on each. *(Tab order on Settings this phase, other pages in Phase 9; focus ring seen in screenshots of a sample of controls)*
 - [x] Window resizes down to minimum size without clipped controls. *(All 5 pages at 900×600; long pages scroll. At that size, with the extra Debug banner, the file list shows 1 row)*
-- [ ] **Owner:** Launch elevated ("Run as administrator"): cleanup controls disabled with explanation.
+- [ ] **Owner:** Launch elevated ("Run as administrator"): cleanup controls disabled with explanation; a notice says nothing is being written; Save settings, "Delete old SafeClean logs…" and "Clear history" are disabled.
 - [x] Set `TEMP` to another folder for a test session: app refuses cleanup and explains. *(Release build)*
 - [x] Scan results match a manual look at a few files (size, date). *(5 real files, read-only)*
 - [x] Cleanup report numbers match deleted files; skipped files still exist. *(Sandbox)*

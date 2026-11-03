@@ -16,11 +16,11 @@ public sealed class HistoryViewModel : PageViewModel
     private IReadOnlyList<HistoryRowViewModel> _entries = [];
     private int _skippedLines;
 
-    public HistoryViewModel(ICleanupHistory history, IUserPrompt prompt)
+    public HistoryViewModel(ICleanupHistory history, IUserPrompt prompt, IElevationProbe elevation)
     {
         _history = history;
         _prompt = prompt;
-        ClearCommand = new RelayCommand(Clear, () => Entries.Count > 0);
+        ClearCommand = new RelayCommand(Clear, () => Entries.Count > 0 && !elevation.IsElevated);
     }
 
     public override string Title => "Cleanup History";

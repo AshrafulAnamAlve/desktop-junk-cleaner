@@ -153,7 +153,7 @@ public sealed class SettingsAndHistoryViewModelTests
         var history = new FakeHistory { SkippedLines = 2 };
         history.Append(new CleanupHistoryEntry(TestScans.Now.AddDays(-2), CleanupHistoryEntry.TempFolder, 5, 1, 0, 2048, 1.5, null));
         history.Append(new CleanupHistoryEntry(TestScans.Now, CleanupHistoryEntry.TempFolder, 0, 0, 0, 0, 0.1, CleanupRefusal.RootChanged));
-        var page = new HistoryViewModel(history, new FakePrompt(false));
+        var page = Pages.History(history);
 
         page.OnShown();
 
@@ -170,12 +170,12 @@ public sealed class SettingsAndHistoryViewModelTests
         var history = new FakeHistory();
         history.Append(new CleanupHistoryEntry(TestScans.Now, CleanupHistoryEntry.TempFolder, 1, 0, 0, 10, 1, null));
 
-        var declined = new HistoryViewModel(history, new FakePrompt(false));
+        var declined = Pages.History(history);
         declined.OnShown();
         declined.ClearCommand.Execute(null);
         Assert.Equal(0, history.ClearCalls);
 
-        var confirmed = new HistoryViewModel(history, new FakePrompt(true));
+        var confirmed = Pages.History(history, new FakePrompt(true));
         confirmed.OnShown();
         confirmed.ClearCommand.Execute(null);
         Assert.Equal(1, history.ClearCalls);

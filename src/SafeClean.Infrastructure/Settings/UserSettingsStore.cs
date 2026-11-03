@@ -39,12 +39,17 @@ public sealed class UserSettingsStore : ISettingsService
     private readonly string _path;
     private readonly ILogger<UserSettingsStore> _logger;
     private readonly Lock _gate = new();
+    private readonly bool _writingAllowed;
 
-    public UserSettingsStore(string path, ILogger<UserSettingsStore> logger)
+    /// <param name="path">The settings file.</param>
+    /// <param name="logger">The log.</param>
+    /// <param name="writingAllowed">False while running as administrator: saving is refused (docs/SECURITY.md R8).</param>
+    public UserSettingsStore(string path, ILogger<UserSettingsStore> logger, bool writingAllowed = true)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         _path = path;
         _logger = logger;
+        _writingAllowed = writingAllowed;
         (Current, LoadProblem) = Load();
     }
 
@@ -60,6 +65,11 @@ public sealed class UserSettingsStore : ISettingsService
 
     public SettingsValidation Save(UserSettings proposed)
     {
+        if (!_writingAllowed)
+        {
+            return new SettingsValidation(null, ["Settings can't be saved while SafeClean runs as administrator. Start it normally to change them."]);
+        }
+
         var validation = SettingsPolicy.Validate(proposed);
         if (!validation.IsValid)
         {

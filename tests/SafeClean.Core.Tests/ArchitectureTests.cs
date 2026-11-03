@@ -157,6 +157,33 @@ public sealed class ArchitectureTests
     }
 
     [Fact]
+    public void OnlyThreeFilesWriteToDisk_AndRunningAsAdministratorTurnsThemAllOff()
+    {
+        // Run as administrator, SafeClean writes nothing to its own folder (docs/SECURITY.md R8).
+        // A new way of writing must be added here on purpose, and must obey the same rule.
+        var writers = new[]
+        {
+            Path.Combine("src", "SafeClean.Infrastructure", "Logging", "FileLoggerProvider.cs"),
+            Path.Combine("src", "SafeClean.Infrastructure", "Settings", "JsonLinesCleanupHistory.cs"),
+            Path.Combine("src", "SafeClean.Infrastructure", "Settings", "UserSettingsStore.cs"),
+        };
+        var writes = new Regex(@"\bFileMode\.(Create|CreateNew|Append|Truncate|OpenOrCreate)\b|\bFileAccess\.(Write|ReadWrite)\b|\bFile\.(Write|Append|Create)\w*\s*\(");
+
+        var found = RepositoryFiles.SourceFiles()
+            .Where(f => writes.IsMatch(File.ReadAllText(f)))
+            .Select(RepositoryFiles.Relative)
+            .Order(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        Assert.Equal(writers.Order(StringComparer.OrdinalIgnoreCase), found);
+        Assert.All(writers, file => Assert.Contains("writingAllowed", File.ReadAllText(Path.Combine(RepositoryFiles.Root, file)), StringComparison.Ordinal));
+
+        // The composition root turns all three off when elevated.
+        var compositionRoot = File.ReadAllText(Path.Combine(RepositoryFiles.SourceDirectory, "SafeClean.App", "App.xaml.cs"));
+        Assert.Equal(3, Regex.Matches(compositionRoot, Regex.Escape("writingAllowed: !elevation.IsElevated")).Count);
+    }
+
+    [Fact]
     public void OnlyTheCleanupService_CallsTheDeletionEngine()
     {
         // The engine must always be reached through CleanupService, which refuses unsafe requests first.

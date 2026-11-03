@@ -20,7 +20,7 @@ the manual checklist before publishing.
 - [x] For each threat (T1–T21 now): name the code that mitigates it and the test that proves it (table in `TESTING.md`)
 - [x] Run the `/code-review` skill; every finding fixed or shown not to be a bug
 - [x] Line-by-line manual security review of the deletion path; every finding fixed
-- [x] `/security-review` skill, on commit 95803fd before pushing (the first attempt failed because the local `origin/HEAD` pointer wasn't set; an earlier note here wrongly said there was no remote). Result: no finding reached the reporting threshold. One was real but low severity (6/10 in the false-positive check): see `SECURITY.md` §10
+- [x] `/security-review` skill, on commit 95803fd before pushing (the first attempt failed because the local `origin/HEAD` pointer wasn't set; an earlier note here wrongly said there was no remote). Result: no finding reached the reporting threshold. One was real but low severity (6/10 in the false-positive check) and is fixed: nothing is written while running as administrator (`SECURITY.md` §13)
 
 ### Failure simulation
 Results in `TESTING.md` → "Failure simulation". Added during the run: closing the window and killing the process mid-cleanup.

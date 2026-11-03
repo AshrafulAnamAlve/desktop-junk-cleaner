@@ -47,9 +47,13 @@ public partial class App : Application
                 dataFiles = SandboxDataFiles(sandboxRoot);
             }
 #endif
-            _loggerProvider = new FileLoggerProvider(dataFiles.LogDirectory);
+
+            // Run as administrator, SafeClean writes nothing to its own folder (docs/SECURITY.md R8). That folder can be
+            // changed without administrator rights, so links planted there could aim an elevated write at a protected file.
+            var elevation = new WindowsElevationProbe();
+            _loggerProvider = new FileLoggerProvider(dataFiles.LogDirectory, writingAllowed: !elevation.IsElevated);
             _loggerProvider.CheckWritable();
-            _services = ConfigureServices(_loggerProvider, sandboxRoot, dataFiles);
+            _services = ConfigureServices(_loggerProvider, sandboxRoot, dataFiles, elevation);
             _logger = _services.GetRequiredService<ILogger<App>>();
 
             // The log level follows the user's settings (cleanup audit lines are always written).
@@ -58,7 +62,6 @@ public partial class App : Application
             settings.Changed += (_, _) => ApplyLogLevel(_loggerProvider, settings.Current);
 
             var info = _services.GetRequiredService<AppInfo>();
-            var elevation = _services.GetRequiredService<IElevationProbe>();
             _logger.LogInformation(
                 "SafeClean {Version} starting. Mode: {Mode}. Elevated: {Elevated}. Sandbox: {Sandbox}.",
                 info.Version,
@@ -90,7 +93,7 @@ public partial class App : Application
         base.OnExit(e);
     }
 
-    private static ServiceProvider ConfigureServices(FileLoggerProvider loggerProvider, string? sandboxRoot, DataFiles dataFiles)
+    private static ServiceProvider ConfigureServices(FileLoggerProvider loggerProvider, string? sandboxRoot, DataFiles dataFiles, IElevationProbe elevation)
     {
         var services = new ServiceCollection();
 
@@ -107,18 +110,18 @@ public partial class App : Application
 
         // Infrastructure
         services.AddSingleton(TimeProvider.System);
-        services.AddSingleton<IElevationProbe, WindowsElevationProbe>();
+        services.AddSingleton(elevation);
         services.AddSingleton<FileInspector>();
         services.AddSingleton<ITempRootResolver, TempRootResolver>();
         services.AddSingleton<ITempScanner, TempScanner>();
         services.AddSingleton<ISystemMonitor, SystemMonitor>(); // read-only monitoring (Phase 8)
 
         // Settings and history (Phase 10). One settings store serves the scanner, the cleanup service and the UI.
-        services.AddSingleton(provider => new UserSettingsStore(dataFiles.SettingsFile, provider.GetRequiredService<ILogger<UserSettingsStore>>()));
+        services.AddSingleton(provider => new UserSettingsStore(dataFiles.SettingsFile, provider.GetRequiredService<ILogger<UserSettingsStore>>(), writingAllowed: !elevation.IsElevated));
         services.AddSingleton<ISettingsService>(provider => provider.GetRequiredService<UserSettingsStore>());
         services.AddSingleton<IUserSettingsProvider>(provider => provider.GetRequiredService<UserSettingsStore>());
         services.AddSingleton<ICleanupHistory>(provider =>
-            new JsonLinesCleanupHistory(dataFiles.HistoryFile, provider.GetRequiredService<ILogger<JsonLinesCleanupHistory>>()));
+            new JsonLinesCleanupHistory(dataFiles.HistoryFile, provider.GetRequiredService<ILogger<JsonLinesCleanupHistory>>(), writingAllowed: !elevation.IsElevated));
         services.AddSingleton<ILogMaintenance>(provider => new LogMaintenance(
             loggerProvider.Directory,
             provider.GetRequiredService<IElevationProbe>(),

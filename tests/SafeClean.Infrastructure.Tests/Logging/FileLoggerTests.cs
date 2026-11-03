@@ -117,6 +117,19 @@ public sealed class FileLoggerTests : IDisposable
     }
 
     [Fact]
+    public void WhenWritingIsNotAllowed_NothingIsWritten_AndLoggingReportsOff()
+    {
+        var directory = _sandbox.PathFor("logs");
+        using var provider = new FileLoggerProvider(directory, () => Day1, FakeProfile, writingAllowed: false);
+
+        provider.CheckWritable();
+        provider.CreateLogger("Test").LogError("must not be written");
+
+        Assert.True(provider.IsDisabled);
+        Assert.False(Directory.Exists(directory)); // not even the folder is created
+    }
+
+    [Fact]
     public void CheckWritable_OnAGoodFolder_KeepsLoggingOn()
     {
         var directory = _sandbox.PathFor("logs");

@@ -186,17 +186,21 @@ internal static class Pages
         FakeSettingsService? settings = null,
         ILogMaintenance? logs = null,
         ICleanupHistory? history = null,
-        IUserPrompt? prompt = null) =>
-        new(settings ?? new FakeSettingsService(), logs ?? new FakeLogMaintenance(), history ?? new FakeHistory(), prompt ?? new FakePrompt(false), new AppInfo("test", "logs"), NullLogger<SettingsViewModel>.Instance);
+        IUserPrompt? prompt = null,
+        bool elevated = false) =>
+        new(settings ?? new FakeSettingsService(), logs ?? new FakeLogMaintenance(), history ?? new FakeHistory(), prompt ?? new FakePrompt(false), new FakeElevation(elevated), new AppInfo("test", "logs"), NullLogger<SettingsViewModel>.Instance);
 
-    public static MainViewModel Shell(DashboardViewModel dashboard, JunkCleanerViewModel junkCleaner, PerformanceViewModel performance, ILogStatus? logStatus = null) =>
+    public static HistoryViewModel History(ICleanupHistory history, IUserPrompt? prompt = null, bool elevated = false) =>
+        new(history, prompt ?? new FakePrompt(false), new FakeElevation(elevated));
+
+    public static MainViewModel Shell(DashboardViewModel dashboard, JunkCleanerViewModel junkCleaner, PerformanceViewModel performance, ILogStatus? logStatus = null, bool elevated = false) =>
         new(
             dashboard,
             junkCleaner,
             performance,
-            new HistoryViewModel(new FakeHistory(), new FakePrompt(false)),
+            History(new FakeHistory()),
             Settings(),
-            new FakeElevation(false),
+            new FakeElevation(elevated),
             logStatus ?? new FakeLogStatus(),
             new AppInfo("test", "logs"));
 }

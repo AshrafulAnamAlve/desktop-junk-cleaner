@@ -135,6 +135,37 @@ public sealed class SettingsAndHistoryStoreTests : IDisposable
         Assert.False(File.Exists(SettingsPath + UserSettingsStore.UnreadableCopySuffix));
     }
 
+    [Fact]
+    public void WhenWritingIsNotAllowed_SavingIsRefused_AndNothingIsWritten()
+    {
+        var store = new UserSettingsStore(SettingsPath, NullLogger<UserSettingsStore>.Instance, writingAllowed: false);
+        var changed = 0;
+        store.Changed += (_, _) => changed++;
+
+        var result = store.Save(UserSettings.Default with { MinimumFileAgeDays = 30 });
+
+        Assert.False(result.IsValid);
+        Assert.Contains("administrator", Assert.Single(result.Errors), StringComparison.Ordinal);
+        Assert.Equal(7, store.Current.MinimumFileAgeDays);
+        Assert.Equal(0, changed);
+        Assert.False(Directory.Exists(Path.GetDirectoryName(SettingsPath)));
+    }
+
+    [Fact]
+    public void WhenWritingIsNotAllowed_AnUnusableFileStaysExactlyAsItWas_AndCleanupStaysPaused()
+    {
+        const string Unusable = "garbage";
+        File.WriteAllText(_sandbox.CreateDirectory("SafeClean") + @"\settings.json", Unusable, Encoding.UTF8);
+        var store = new UserSettingsStore(SettingsPath, NullLogger<UserSettingsStore>.Instance, writingAllowed: false);
+
+        store.Save(UserSettings.Default);
+
+        Assert.Equal(Unusable, File.ReadAllText(SettingsPath));
+        Assert.False(File.Exists(SettingsPath + UserSettingsStore.UnreadableCopySuffix));
+        Assert.False(File.Exists(SettingsPath + ".tmp"));
+        Assert.NotNull(store.LoadProblem);
+    }
+
     // ---- History ----
 
     private JsonLinesCleanupHistory History() => new(_sandbox.PathFor(@"SafeClean\history.jsonl"), NullLogger<JsonLinesCleanupHistory>.Instance);
@@ -182,6 +213,22 @@ public sealed class SettingsAndHistoryStoreTests : IDisposable
 
         Assert.Single(loaded.Entries);
         Assert.Equal(1, loaded.SkippedLines);
+    }
+
+    [Fact]
+    public void History_WhenWritingIsNotAllowed_AddingAndClearingChangeNothing_ButReadingStillWorks()
+    {
+        var entry = new CleanupHistoryEntry(DateTimeOffset.UtcNow, CleanupHistoryEntry.TempFolder, 1, 0, 0, 10, 1, null);
+        History().Append(entry);
+        var path = _sandbox.PathFor(@"SafeClean\history.jsonl");
+        var before = File.ReadAllText(path);
+        var history = new JsonLinesCleanupHistory(path, NullLogger<JsonLinesCleanupHistory>.Instance, writingAllowed: false);
+
+        history.Append(entry);
+        history.Clear();
+
+        Assert.Equal(before, File.ReadAllText(path));
+        Assert.Single(history.Load().Entries);
     }
 
     [Fact]

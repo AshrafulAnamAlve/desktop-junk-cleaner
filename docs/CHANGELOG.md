@@ -3,8 +3,8 @@
 ## [Unreleased]
 
 ### Phase 11 — security review and verification (in progress, 2026-11-02)
-Verified: builds 0 warnings; Debug 857 total: 850 passed, 0 failed, 7 skipped; Release 851 total: 845 passed, 0 failed,
-6 skipped; mutation check 21/21 planted bugs caught; race gate 50/50; no vulnerable packages. **Not finished:** 3 manual
+Verified: builds 0 warnings; Debug 866 total: 859 passed, 0 failed, 7 skipped; Release 860 total: 854 passed, 0 failed,
+6 skipped; mutation checks 32/32 planted bugs caught; race gate 50/50; no vulnerable packages. **Not finished:** 3 manual
 checks are waiting for the owner. All deletion
 was on synthetic sandbox files; the real Temp folder was only scanned read-only, and real settings and history weren't changed.
 
@@ -16,6 +16,8 @@ Fixed (full list with sources in `docs/TESTING.md` → "Review findings"):
   limit; the age rule shows the age in force; "Saved" clears after a change
 - **Side jobs can't cost the real report:** free-space and history failures are contained; list and log-cleanup failures are
   said on the page; a bad history line no longer breaks the History page
+- **Nothing is written while running as administrator** (no log, settings or history), so planted links can't aim an
+  elevated write at a protected file; enforced in the three writing classes, with a test that fails if another starts writing
 - **Closing the window mid-cleanup** stops it before the next file and shows the report
 - **Debug sandbox runs** keep their settings, history and logs beside the sandbox, never the real ones
 - **`System.Net.Http` implicit import really removed** (moved to the new `Directory.Build.targets`; the old setting did nothing)

@@ -115,9 +115,9 @@ Detailed plan for each phase: [`docs/phases/`](phases/README.md) (one file per p
 
 ## Phase 11 – Security review and verification (in progress)
 - [x] Full regression in Debug and Release; race gate repeated 50 times; dependency audit; Release binaries checked
-- [x] Threat walkthrough (T1–T21: code and tests); code review and manual security review; 16 real problems fixed
+- [x] Threat walkthrough (T1–T21: code and tests); code review, security review and manual review; 17 real problems fixed
 - [x] Failure simulation on synthetic files, including 100,000 files, cancel, close and kill mid-cleanup
-- [x] Verified: 0 warnings; Debug 850 passed, Release 845 passed, 0 failed; mutation check caught 21/21 planted bugs
+- [x] Verified: 0 warnings; Debug 859 passed, Release 854 passed, 0 failed; mutation checks caught 32/32 planted bugs
 - [~] Manual checklist: 10 of 13 done; run as administrator, display scaling and Narrator need the owner
 
 ## Phase 12 – Publishing

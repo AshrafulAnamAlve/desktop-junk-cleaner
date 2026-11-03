@@ -120,10 +120,12 @@ public sealed class MainViewModel : ObservableObject
 
     public string SandboxBannerText => $"SANDBOX MODE (Debug build) — working on {SandboxRoot}, not your Temp folder. Settings, history and logs are kept beside it, not in your real ones.";
 
-    /// <summary>The log file can't be written, so the user is told this session isn't being recorded.</summary>
+    /// <summary>The log file can't be written, or SafeClean is running as administrator, so the user is told this session isn't being recorded.</summary>
     public bool IsLoggingOff => _logStatus.IsDisabled;
 
-    public string LoggingOffText => "SafeClean can't write its log file, so this session isn't being recorded. Scanning and cleanup still apply every safety check, but the on-screen report is the only record of a cleanup.";
+    public string LoggingOffText => IsElevated
+        ? "SafeClean is running as administrator, so it isn't writing its log, settings or history. Start it normally to save changes and keep a record."
+        : "SafeClean can't write its log file, so this session isn't being recorded. Scanning and cleanup still apply every safety check, but the on-screen report is the only record of a cleanup.";
 
     /// <summary>
     /// Asked when the window is about to close. During a cleanup the answer is no: the cleanup stops before the

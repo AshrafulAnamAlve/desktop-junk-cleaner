@@ -30,7 +30,7 @@ public sealed class SettingsViewModel : PageViewModel
     private IReadOnlyList<string> _saveErrors = [];
     private string _logStatus = string.Empty;
 
-    public SettingsViewModel(ISettingsService settings, ILogMaintenance logs, ICleanupHistory history, IUserPrompt prompt, AppInfo info, ILogger<SettingsViewModel> logger)
+    public SettingsViewModel(ISettingsService settings, ILogMaintenance logs, ICleanupHistory history, IUserPrompt prompt, IElevationProbe elevation, AppInfo info, ILogger<SettingsViewModel> logger)
     {
         _settings = settings;
         _logs = logs;
@@ -56,9 +56,11 @@ public sealed class SettingsViewModel : PageViewModel
 
         AddExclusionCommand = new RelayCommand(AddExclusion);
         RemoveExclusionCommand = new RelayCommand<string>(RemoveExclusion);
-        SaveCommand = new RelayCommand(Save);
+
+        // Nothing is written while running as administrator; the window says so.
+        SaveCommand = new RelayCommand(Save, () => !elevation.IsElevated);
         RevertCommand = new RelayCommand(LoadFromCurrent);
-        DeleteOldLogsCommand = new AsyncRelayCommand(DeleteOldLogsAsync);
+        DeleteOldLogsCommand = new AsyncRelayCommand(DeleteOldLogsAsync, () => !elevation.IsElevated);
 
         LoadFromCurrent();
         _settings.Changed += (_, _) => OnPropertyChanged(nameof(LoadProblem));
