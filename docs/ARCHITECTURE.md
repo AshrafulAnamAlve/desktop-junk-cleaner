@@ -76,6 +76,12 @@ SafeClean.App ───────────────► SafeClean.Core �
 | **Central Package Management + lock files** | Every dependency and version is listed in one file; lock files record exact package hashes so a tampered package fails restore. |
 | **NuGet audit + warnings as errors** | Builds fail if a known-vulnerable package is used or if the compiler finds a likely bug. |
 
+## Publishing (Phase 12)
+
+`tools\publish-release.ps1` makes the release: one `SafeClean.exe` holding SafeClean and its own copy of .NET, 5 Microsoft
+DLLs beside it, a README and .NET's licence notices, all in a ZIP with a SHA-256 checksum. Nothing is unpacked into Temp
+(`SECURITY.md` §14). `tools\make-icon.ps1` draws the app icon, so no separate icon tool is needed. Output goes to `publish\`, which Git ignores.
+
 ## Dependencies (all free)
 
 | Package | Publisher | Used by | Purpose |

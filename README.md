@@ -2,14 +2,14 @@
 
 A safety-first Windows PC cleaner built with C#, WPF and .NET 10. Free, local-only, no cloud services.
 
-> **Current status: Phase 11 done, publishing is next** — the Junk Cleaner screen scans your Temp folder (read-only), shows
+> **Current status: version 1.0.0, all phases done** — the Junk Cleaner screen scans your Temp folder (read-only), shows
 > every file with its status and reason, lets you tick files or categories, shows a **Dry Run preview**,
 > and — only if you switch **Real cleanup mode** on and confirm — deletes the selected files through the
 > safety-tested engine. The **Dashboard** and **Performance** screens show live, read-only memory,
 > processor, drive and program-memory figures. **Settings** can make the rules stricter, and **History** lists past
-> cleanups. 859 automated tests pass (7 skipped with documented reasons).
+> cleanups. 866 automated tests pass (7 skipped with documented reasons).
 
-## What it will do (version 1)
+## What it does (version 1)
 
 - Scan **only** the current user's Temp folder, read-only.
 - Show each candidate file with size, date, status and the reason it was (or wasn't) offered.
@@ -20,10 +20,37 @@ A safety-first Windows PC cleaner built with C#, WPF and .NET 10. Free, local-on
 
 What it deliberately will **not** touch is listed in [docs/SECURITY.md](docs/SECURITY.md) §11.
 
+## Download and run
+
+You don't need to install .NET, and you don't need administrator rights.
+
+1. From the project's [Releases page](https://github.com/AshrafulAnamAlve/desktop-junk-cleaner/releases), download
+   `SafeClean-<version>-win-x64.zip` and the `.sha256` file next to it.
+2. Check the download. In PowerShell, in the folder holding the ZIP, run
+   `Get-FileHash .\SafeClean-<version>-win-x64.zip -Algorithm SHA256`. The result must match the `.sha256` file exactly.
+   If it doesn't, don't run the program.
+3. Right-click the ZIP and choose **Extract All…**. This step matters: `SafeClean.exe` needs the files beside it, and
+   without them it closes straight away with no message.
+4. Run `SafeClean.exe` from the extracted folder.
+
+**"Windows protected your PC":** SafeClean is free and has no paid code-signing certificate, so Windows SmartScreen doesn't
+recognise it and may show this warning. The warning doesn't mean a virus was found, and it doesn't prove the file is safe, which is
+why step 2 matters. If the checksum matches and you trust the source, choose **More info**, then **Run anyway**.
+
+**Removing it:** close SafeClean and delete the extracted folder. Nothing was installed, so there's no uninstaller.
+Settings, history and logs are in `%LOCALAPPDATA%\SafeClean`; delete that folder too if you want them gone. SafeClean adds no
+startup entries, services or registry settings.
+
 ## Requirements
 
-- Windows 10 or 11 (x64)
-- [.NET 10 SDK](https://dotnet.microsoft.com/download) (10.0.203 or later 10.0.x) to build
+- **To run:** Windows 11 or Windows 10, 64-bit (x64), and about 130 MB of disk space.
+- **To build:** [.NET 10 SDK](https://dotnet.microsoft.com/download) 10.0.403 or later 10.0.x. Older SDKs are refused on
+  purpose, because a release carries the runtime of the SDK that built it.
+
+Microsoft's [support list for .NET 10](https://github.com/dotnet/core/blob/main/release-notes/10.0/supported-os.md) names
+Windows 11 and the long-term (LTS) editions of Windows 10. Regular Windows 10 22H2 is no longer on it. SafeClean 1.0.0 was
+tested on Windows 10 Home 22H2 (build 19045) and works there, but Microsoft no longer promises .NET fixes for that version. It
+hasn't yet been tested on Windows 11 or on a second PC.
 
 ## Build, test, run
 
@@ -34,6 +61,13 @@ dotnet run --project src/SafeClean.App
 ```
 
 The app runs with normal user rights (never as administrator) and always starts in **Dry Run** mode.
+
+To make a release (a folder, a ZIP and a checksum, in `publish\`), run the command below. It checks each build before zipping
+it, deletes nothing, and stops if that version's output already exists.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\publish-release.ps1
+```
 
 ## Cleaning (Real mode)
 

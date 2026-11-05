@@ -308,6 +308,14 @@ controls services. Values Windows won't give are shown as unknown ("n/a", "measu
 - While SafeClean runs as administrator it still **reads** its settings and history from `%LOCALAPPDATA%\SafeClean`, which can be changed without administrator rights, so what it shows can be misleading. Those files can't widen what SafeClean does, and cleanup is refused while elevated anyway.
 - In a normal run SafeClean's own writes don't check for links in `%LOCALAPPDATA%\SafeClean`. A program running as the same user could aim them elsewhere, but it could write to those places itself, so it gains nothing.
 
+- The published program is **not code-signed** (a certificate costs money, and the project is free). Windows SmartScreen may warn, and
+  the only proof that a download is intact is the SHA-256 checksum, which is only as trustworthy as the page it came from.
+- There is **no automatic update** (that would need the network). Runtime security fixes reach users only through a new
+  SafeClean release, because the program carries its own copy of .NET.
+- Regular Windows 10 22H2 is no longer on Microsoft's .NET 10 support list. SafeClean works there, but Microsoft no longer
+  promises .NET fixes for it.
+- `SafeClean.exe` run without the DLLs beside it closes at once with no message. Extract the whole ZIP first.
+
 ## 11. Deliberately unsupported in version 1
 
 Windows directory and system temp, Windows Update/installer caches, Prefetch, Recycle Bin, personal
@@ -411,3 +419,15 @@ otherwise aim an elevated write at a protected file. The rule is enforced in the
 (`FileLoggerProvider`, `UserSettingsStore`, `JsonLinesCleanupHistory`), not only in the screens: Save, "Delete old logs" and
 "Clear history" are disabled, and a notice on every page says why.
 `ArchitectureTests.OnlyThreeFilesWriteToDisk_AndRunningAsAdministratorTurnsThemAllOff` fails if another class starts writing.
+
+## 14. The published program (Phase 12)
+
+- **Nothing is unpacked into Temp.** `IncludeNativeLibrariesForSelfExtract` is off, because with it .NET would unpack DLLs into
+  `%TEMP%\.net`. SafeClean would then add files to the folder it cleans and load code from a folder it treats as disposable.
+  `PublishingTests` fails if the option is turned on. The 5 Microsoft DLLs sit beside the program and are signed by Microsoft.
+- **Each build is checked before it's zipped** (`tools\publish-release.ps1`): no Debug-only sandbox code, `asInvoker` and no
+  request for administrator rights, and a bundled runtime at least as new as the newest installed .NET 10 runtime. Any failure stops the script.
+  The sandbox search first has to find ordinary SafeClean code, so "not found" means something.
+- **Release builds are held to exact packages** by their own lock files (`packages.win-x64.lock.json`), in locked mode.
+- **The release script deletes nothing** and refuses to replace existing output (`PublishingTests`).
+- **No installer, no system changes:** no startup entries, services, registry settings or administrator rights.

@@ -24,7 +24,7 @@ Detailed plan for each phase: [`docs/phases/`](phases/README.md) (one file per p
 | 9 | Dashboard and Performance screens on real data; UI polish and accessibility | Done (2026-10-27) |
 | 10 | Settings, restrict-only exclusions, logging controls, cleanup history | Done (2026-10-31) |
 | 11 | Security review, regression, failure simulation, manual verification | Done (2026-11-03) |
-| 12 | Publish self-contained build with free tools; compatibility notes | Not started |
+| 12 | Publish self-contained build with free tools; compatibility notes | Done (2026-11-05) |
 
 ---
 
@@ -120,5 +120,8 @@ Detailed plan for each phase: [`docs/phases/`](phases/README.md) (one file per p
 - [x] Verified: 0 warnings; Debug 859 passed, Release 854 passed, 0 failed; mutation checks caught 32/32 planted bugs
 - [x] Manual checklist: 13 of 13 (display scaling and Narrator checked by the owner)
 
-## Phase 12 – Publishing
-- [ ] Self-contained `win-x64` publish with free tooling; compatibility and limitations documented
+## Phase 12 – Publishing ✅ (2026-11-05)
+- [x] SDK updated (10.0.403, runtime 10.0.14); self-contained `win-x64` portable ZIP with SHA-256 checksum, app icon and release script
+- [x] Nothing unpacked into Temp (the plan's self-extract option was dropped on purpose); compatibility and limitations documented
+- [x] Verified: 0 warnings; Debug 866 passed, Release 861 passed, 0 failed; extracted ZIP smoke test passed, read-only
+- [ ] Optional, not done: installer, second PC. Not uploaded: the owner decides when

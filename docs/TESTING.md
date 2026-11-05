@@ -7,6 +7,7 @@ dotnet build SafeClean.sln -c Debug               # build everything (warnings a
 dotnet test --solution SafeClean.sln -c Debug     # run all automated tests
 dotnet run --project src/SafeClean.App            # start the app
 dotnet list SafeClean.sln package --vulnerable --include-transitive   # dependency audit
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\publish-release.ps1   # make a release (deletes nothing)
 ```
 
 Tests run on **Microsoft.Testing.Platform** (enabled in `global.json`), which xUnit v3 supports natively.
@@ -414,6 +415,17 @@ in `SECURITY.md` §6; tests confirm the implementation follows it.
 | 2026-11-03 | 11 | Release binaries searched for sandbox code, after that fix | ✅ 0 hits in all 3 assemblies |
 | 2026-11-03 | 11 | Real "Run as administrator" launch (Release build, owner approved the Windows prompt; read-only script with no code for Real mode or Delete) | ✅ Notice shown on every page; Real mode switch greyed out with the reason; no delete button; Save settings and "Delete old SafeClean logs…" greyed out; read-only scan of the real Temp folder worked; SafeClean's 7 files byte-for-byte unchanged; `settings.json` and `history.jsonl` not created. One script check failed because of the test, not the app: it looked for the name "ADMINISTRATOR", but that label's screen-reader name is the longer warning text. The badge is visible in the screenshot. A first attempt stopped before doing anything (script bug) |
 | 2026-11-03 | 11 | Display scaling at 125 % and 150 %, and Windows Narrator | ✅ Reported by the owner: all OK |
+| 2026-11-05 | 12 | Before starting, on SDK 10.0.203: builds (no-incremental) and tests | ✅ 0 warnings; Debug 866 total: 859 passed, 0 failed, 7 skipped; Release 860 total: 854 passed, 0 failed, 6 skipped. Real Temp scan read-only: 37,374 entries, 0 safe, 28 review; an independent count outside the app found the same 28 files and 3.9 MB. Desktop and Documents unchanged before and after |
+| 2026-11-05 | 12 | SDK 10.0.403 installer | ✅ SHA-512 matches Microsoft's release file; signature valid (Microsoft); owner approved the Windows prompt; exit code 0; 10.0.203 still installed |
+| 2026-11-05 | 12 | Release build and tests on SDK 10.0.403, before any change | ✅ 0 warnings; 860 total: 854 passed, 0 failed, 6 skipped |
+| 2026-11-05 | 12 | Release script, first trial | ❌ Stopped safely: the Windows Desktop package names its licence `LICENSE`, not `LICENSE.TXT`; the normal lock files were also rewritten → fixed (exact file list; release builds keep `packages.win-x64.lock.json`) |
+| 2026-11-05 | 12 | `dotnet build` Debug and Release (no-incremental), with `PublishingTests` | ✅ 0 warnings, 0 errors |
+| 2026-11-05 | 12 | `dotnet test` Debug and Release, with `PublishingTests` | ✅ Debug 873 total: 866 passed, 0 failed, 7 skipped; Release 867 total: 861 passed, 0 failed, 6 skipped. No sandbox folders left behind. No mutation check this phase: the changes are packaging, not safety logic |
+| 2026-11-05 | 12 | `dotnet list package --vulnerable --include-transitive` | ✅ None in any of the 6 projects |
+| 2026-11-05 | 12 | Final release build with packages locked | ✅ The script's checks passed: no sandbox code, `asInvoker`, runtime 10.0.14, no stray files. ZIP 54 MB, 126 MB extracted. SHA-256 `bfcbf8c063e803a919e5d5468c46079bba6d2d4e134fcbd3ef6197c892820153` |
+| 2026-11-05 | 12 | ZIP extracted to another folder, then run (UI Automation, read-only; no code for Real mode or Delete) | ✅ Checksum and extracted `.exe` match; opens, Dry Run, not elevated; all 5 pages; scan of real Temp without freezing (37,465 entries); preview of 1 ticked review file; 0 of 71 modules from an installed `dotnet` folder; 0 from Temp; no `%TEMP%\.net`; no network libraries or sockets at the check after the run; real `settings.json` and `history.jsonl` not created; clean exit. The first run stopped at a mistake in the test script, after the app steps had passed |
+| 2026-11-05 | 12 | `SafeClean.exe` on its own, without the DLLs beside it | ⚠️ Closes at once with no message (exit code -1073740771, `DllNotFoundException`). Nothing harmed. Known limitation; the README says to extract first |
+| 2026-11-05 | 12 | Not run | ⏭️ Real deletion through the published program (no test folder exists in Release builds, and real Temp isn't for testing); elevated launch of the published program; display scaling and Narrator; a second PC, Windows 11, or a PC without .NET (this PC has .NET installed, though the module check shows it isn't used). The optional installer wasn't built |
 
 ## Manual test checklist (Phase 11)
 

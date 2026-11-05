@@ -1,6 +1,31 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.0] — 2026-11-05 (built, not yet uploaded)
+
+First release: a portable Windows x64 ZIP that needs no .NET install and no administrator rights.
+
+**What's in it:** a read-only scan of your Temp folder, a Dry Run preview, optional real cleanup with re-checks and a
+confirmation, live memory, processor and drive figures, settings that can only make it stricter, cleanup history and local logs.
+Everything stays on your PC.
+
+**Before you run it:** extract the whole ZIP first. Windows SmartScreen may warn about it because it's unsigned; compare the
+SHA-256 checksum first. Regular Windows 10 22H2 is no longer on Microsoft's .NET 10 support list, though SafeClean works on
+it. Limits are in `README.md` and `docs/SECURITY.md` §10–11.
+
+### Phase 12 — publishing ✅ Done (2026-11-05)
+Verified: builds 0 warnings on SDK 10.0.403; Debug 873 total: 866 passed, 0 failed, 7 skipped; Release 867 total: 861 passed, 0 failed,
+6 skipped; no vulnerable packages; the extracted ZIP passed its read-only checks against the real Temp folder.
+Optional and not done: installer, second-PC test.
+
+Created:
+- `tools/publish-release.ps1` (builds, checks, zips and checksums; deletes nothing), `tools/make-icon.ps1`, `tools/README-portable.txt`
+- `src/SafeClean.App/Resources/SafeClean.ico`; `packages.win-x64.lock.json` in the three `src` projects (release builds keep their own package hashes)
+- `tests/SafeClean.Core.Tests/PublishingTests.cs`
+
+Changed:
+- Version 0.1.0 → 1.0.0; `global.json` requires SDK 10.0.403 or later, so releases carry the patched runtime
+- The plan's self-extract option was dropped: nothing is unpacked into `%TEMP%`, so 5 Microsoft DLLs ship beside the program
+- Docs: `README.md` (download, run, verify, remove, requirements), `docs/SECURITY.md` (§10, §14), `docs/ARCHITECTURE.md`, `docs/TESTING.md`
 
 ### Phase 11 — security review and verification ✅ Done (2026-11-03)
 Verified: builds 0 warnings; Debug 866 total: 859 passed, 0 failed, 7 skipped; Release 860 total: 854 passed, 0 failed,

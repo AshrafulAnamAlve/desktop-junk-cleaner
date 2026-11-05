@@ -48,7 +48,7 @@
         "type": "Project",
         "dependencies": {
           "Microsoft.Extensions.Logging.Abstractions": "[10.0.12, )",
-          "SafeClean.Core": "[0.1.0, )"
+          "SafeClean.Core": "[1.0.0, )"
         }
       },
       "Microsoft.Extensions.Logging.Abstractions": {
