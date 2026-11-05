@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SafeClean: a careful cleaner for your Windows Temp folder</title>
+<meta name="description" content="SafeClean is a free Windows app that shows exactly what it would remove from your Temp folder and removes nothing until you confirm. It works offline.">
+<link rel="icon" href="favicon.ico">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="bar">
+  <div class="wrap bar-row">
+    <a class="brand" href="#top" aria-label="SafeClean home">
+      <img src="favicon.ico" alt="" width="28" height="28">
+      <span>SafeClean</span>
+    </a>
+    <nav aria-label="Page sections">
+      <a href="#safety">Safety</a>
+      <a href="#install">Install</a>
+      <a href="#limits">Limits</a>
+      <a href="https://github.com/AshrafulAnamAlve/desktop-junk-cleaner">Source code</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+  <section class="hero" id="top">
+    <div class="wrap hero-grid">
+      <div>
+        <h1>Clean your Temp folder without the guesswork.</h1>
+        <p class="lead">SafeClean shows you every file it finds and why it would or wouldn't remove it. Nothing is deleted until you turn on Real mode, pick the files and confirm.</p>
+        <div class="cta">
+          <a class="button" href="https://github.com/AshrafulAnamAlve/desktop-junk-cleaner/releases/download/v1.0.0/SafeClean-1.0.0-win-x64.zip">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M12 4v11m0 0 4.5-4.5M12 15l-4.5-4.5M5 20h14"/></svg>
+            Download for Windows
+          </a>
+          <p class="meta">Version 1.0.0 · 54 MB ZIP · Windows, 64-bit · Free</p>
+        </div>
+        <p class="note">Please extract the ZIP before running it. Windows may show a warning the first time, because the app isn't code-signed. <a href="#install">See how to install</a>.</p>
+      </div>
+      <figure class="shot hero-shot">
+        <img src="assets/dashboard.png" width="1200" height="738" alt="SafeClean's Dashboard showing memory, processor and drive use, with Dry Run mode switched on.">
+      </figure>
+    </div>
+  </section>
+
+  <section class="band" id="safety">
+    <div class="wrap">
+      <h2>Careful by default</h2>
+      <p class="section-lead">When SafeClean isn't sure about a file, it keeps it.</p>
+      <div class="cards">
+        <article class="card">
+          <h3>Starts in preview mode</h3>
+          <p>Dry Run is on every time the app opens. Scanning only reads your files, and a preview changes nothing.</p>
+        </article>
+        <article class="card">
+          <h3>You make the final call</h3>
+          <p>Deleting takes three steps: switch on Real mode, select files and confirm. Cancel is the default answer, and Real mode turns itself off after each cleanup.</p>
+        </article>
+        <article class="card">
+          <h3>Checks each file again</h3>
+          <p>Right before deleting, SafeClean re-checks every file. Anything that changed, is in use or no longer passes the rules is skipped and kept.</p>
+        </article>
+        <article class="card">
+          <h3>Only your Temp folder</h3>
+          <p>It only offers files in your own Temp folder that are at least 7 days old. Your personal folders, Windows and program folders are protected.</p>
+        </article>
+        <article class="card">
+          <h3>Works offline</h3>
+          <p>The app makes no network connections and sends nothing about your files anywhere. Its logs stay on your PC.</p>
+        </article>
+        <article class="card">
+          <h3>Honest numbers</h3>
+          <p>“Space freed” counts only files that were really deleted. There's no fake speed score and no “RAM cleaner”.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section id="see">
+    <div class="wrap">
+      <h2>See what it would do first</h2>
+      <p class="section-lead">Every file gets a status and a reason. These screens use made-up test files.</p>
+      <div class="gallery">
+        <figure class="shot">
+          <img src="assets/scan.png" width="960" height="620" loading="lazy" alt="Junk Cleaner scan results listing test files, each marked Safe to remove or Needs review, grouped by category.">
+          <figcaption>Scan results, with a status for each file</figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="assets/preview.png" width="960" height="620" loading="lazy" alt="Dry Run preview saying nothing was deleted and a real cleanup would try to delete 4 files, about 63 KB.">
+          <figcaption>A Dry Run preview: nothing is deleted</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" id="install">
+    <div class="wrap">
+      <h2>Install in four steps</h2>
+      <p class="section-lead">There's nothing to install and no need for administrator rights.</p>
+      <ol class="steps">
+        <li>
+          <h3>Download the ZIP</h3>
+          <p><a href="https://github.com/AshrafulAnamAlve/desktop-junk-cleaner/releases/download/v1.0.0/SafeClean-1.0.0-win-x64.zip">SafeClean-1.0.0-win-x64.zip</a> (54 MB).</p>
+        </li>
+        <li>
+          <h3>Check the download</h3>
+          <p>In PowerShell, in the folder with the ZIP, run:</p>
+          <pre><code>Get-FileHash .\SafeClean-1.0.0-win-x64.zip -Algorithm SHA256</code></pre>
+          <p>The result must match this value exactly. If it doesn't, don't run the program.</p>
+          <pre class="hash"><code>57a3669676abc725cb4af949aaf5b22fa6fc57c3529eda1b0b8df5f5ad9f7155</code></pre>
+          <p class="small">The same value is on the <a href="https://github.com/AshrafulAnamAlve/desktop-junk-cleaner/releases/tag/v1.0.0">release page</a>.</p>
+        </li>
+        <li>
+          <h3>Extract everything</h3>
+          <p>Right-click the ZIP and choose <strong>Extract All…</strong> This step matters: the app needs the files beside it, and without them it closes with no message.</p>
+        </li>
+        <li>
+          <h3>Run SafeClean.exe</h3>
+          <p>Please don't use “Run as administrator”, because SafeClean turns cleanup off when it runs that way.</p>
+        </li>
+      </ol>
+
+      <div class="callout">
+        <h3>“Windows protected your PC”</h3>
+        <p>SafeClean is free and has no paid code-signing certificate, so Windows SmartScreen doesn't recognise it and may show this warning. The warning doesn't mean a virus was found, and it doesn't prove the file is safe. If your checksum matches and you trust this source, choose <strong>More info</strong>, then <strong>Run anyway</strong>.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="limits">
+    <div class="wrap">
+      <h2>Good to know before you start</h2>
+      <div class="columns">
+        <div>
+          <h3>What it won't do</h3>
+          <ul>
+            <li>Clean browser caches, the registry, Windows Update files or the Recycle Bin</li>
+            <li>Clean anything outside your own Temp folder</li>
+            <li>Run in the background or start with Windows</li>
+            <li>Update itself. New versions appear on this page</li>
+          </ul>
+        </div>
+        <div>
+          <h3>What to watch for</h3>
+          <ul>
+            <li class="warn"><strong>Deleted files don't go to the Recycle Bin.</strong> They're gone for good</li>
+            <li>It may find little to clean, because recent files are kept for at least 7 days</li>
+            <li>A scan stops at 250,000 entries and tells you if it did</li>
+          </ul>
+        </div>
+        <div>
+          <h3>System requirements</h3>
+          <ul>
+            <li>Windows 10 or 11, 64-bit, with about 130 MB of disk space</li>
+            <li>No .NET install needed, as the app carries its own copy</li>
+            <li>Tested on Windows 10 Home 22H2. Not yet tested on Windows 11</li>
+            <li>Regular Windows 10 22H2 is no longer on Microsoft's .NET 10 support list</li>
+          </ul>
+        </div>
+      </div>
+      <p class="small remove"><strong>To remove it:</strong> close SafeClean and delete the folder you extracted. To remove its settings, history and logs too, delete <code>%LOCALAPPDATA%\SafeClean</code>. It adds no startup entries, services or registry settings.</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap footer-row">
+    <span>SafeClean 1.0.0</span>
+    <a href="https://github.com/AshrafulAnamAlve/desktop-junk-cleaner">Source code</a>
+    <a href="https://github.com/AshrafulAnamAlve/desktop-junk-cleaner/blob/main/docs/SECURITY.md">Safety rules and limits</a>
+    <a href="https://github.com/AshrafulAnamAlve/desktop-junk-cleaner/releases">All releases</a>
+    <span>This page has no analytics and sets no cookies.</span>
+  </div>
+</footer>
+</body>
+</html>
